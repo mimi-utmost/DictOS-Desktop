@@ -1,0 +1,25 @@
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores e IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Dependências e builds (ajustar conforme a stack do projeto)
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+!.env.example
