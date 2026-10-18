@@ -12,6 +12,9 @@ desktop.ini
 # Logs
 *.log
 
+# Rust
+/target
+
 # Dependências e builds (ajustar conforme a stack do projeto)
 node_modules/
 dist/

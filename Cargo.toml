@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/dictionary",
+    "crates/dictos",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
