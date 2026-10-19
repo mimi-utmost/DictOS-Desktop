@@ -23,6 +23,14 @@ enum Command {
         #[arg(long)]
         out: PathBuf,
     },
+    /// Importa um diretório `dict/` do Princeton WordNet 3.1 para o formato v1.
+    ImportWordnet {
+        /// Diretório `dict/` do WordNet (com index.* e data.*).
+        dict_dir: PathBuf,
+        /// Diretório de saída do dicionário.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Consulta uma palavra no dicionário.
     Lookup {
         /// Palavra a consultar.
@@ -58,6 +66,7 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Import { input, out } => import(&input, &out),
+        Command::ImportWordnet { dict_dir, out } => import_wordnet(&dict_dir, &out),
         Command::Lookup { word, dict } => lookup(&word, &dict),
         Command::Suggest {
             prefix,
@@ -78,6 +87,16 @@ fn import(input: &PathBuf, out: &PathBuf) -> Result<()> {
     DictionaryBuilder::build(entries, out)
         .with_context(|| format!("falha ao construir dicionário em {}", out.display()))?;
     println!("Dicionário construído em {}", out.display());
+    Ok(())
+}
+
+fn import_wordnet(dict_dir: &PathBuf, out: &PathBuf) -> Result<()> {
+    let entries = dictos_dictionary::wordnet::import_wordnet(dict_dir)
+        .with_context(|| format!("falha ao importar WordNet de {}", dict_dir.display()))?;
+    let total = entries.len();
+    DictionaryBuilder::build(entries, out)
+        .with_context(|| format!("falha ao construir dicionário em {}", out.display()))?;
+    println!("{total} entradas importadas; dicionário construído em {}", out.display());
     Ok(())
 }
 

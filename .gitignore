@@ -15,6 +15,10 @@ desktop.ini
 # Rust
 /target
 
+# Dados de dicionário (brutos e gerados) — regeneráveis, ver data/README.md
+data/raw/
+data/dict/
+
 # Dependências e builds (ajustar conforme a stack do projeto)
 node_modules/
 dist/

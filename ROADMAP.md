@@ -11,14 +11,14 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 - Lookup exato, por prefixo, com normalização (case/diacríticos) e palavra desconhecida cobertos por testes.
 - Roundtrip de importação (JSONL → formato v1 → leitura) com fixture em `data/fixtures/`.
 
-## Etapa 2 — Dados reais
+## Etapa 2 — Dados reais ✅ (concluída)
 
-**Entrega:** importador WordNet 3.1 → dataset en–en empacotado; arquivo de NOTICES com atribuições de licença no bundle.
+**Entrega:** importador WordNet 3.1 (`dictos import-wordnet`) → dataset en–en; NOTICES com a licença do WordNet; pipeline documentado em `data/README.md`.
 
 **Critérios de aceitação:**
-- Lookup real de palavras comuns retorna definição, classe gramatical e exemplos (quando existentes no WordNet).
-- NOTICES presente e correto (WordNet; "Built with Slint" quando a UI existir).
-- Dataset gerado por pipeline reproduzível (script/comando documentado), dados brutos fora do git.
+- Lookup real de palavras comuns retorna definição, classe gramatical e exemplos (quando existentes no WordNet). ✅ verificado com "serendipity", "apple", "run" (~155 mil entradas importadas)
+- NOTICES presente e correto (WordNet). ✅
+- Dataset gerado por pipeline reproduzível (comandos em `data/README.md`), dados brutos e gerados fora do git. ✅
 
 ## Etapa 3 — MVP Windows
 

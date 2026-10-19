@@ -13,6 +13,7 @@
 mod builder;
 mod import;
 mod reader;
+pub mod wordnet;
 
 pub use builder::DictionaryBuilder;
 pub use import::import_jsonl;
