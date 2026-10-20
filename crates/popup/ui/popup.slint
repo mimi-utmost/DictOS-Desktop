@@ -1,0 +1,86 @@
+export component DictosPopup inherits Window {
+    in property <string> word: "";
+    in property <string> body: "";
+    in property <string> note: "";
+    callback close();
+
+    no-frame: true;
+    always-on-top: true;
+    width: 380px;
+    height: min(layout.preferred-height, 460px);
+    background: transparent;
+
+    layout := Rectangle {
+        background: #fafaf7;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: #d8d4cc;
+        drop-shadow-blur: 14px;
+        drop-shadow-color: #00000040;
+
+        VerticalLayout {
+            padding: 14px;
+            spacing: 8px;
+
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: root.word;
+                    font-size: 17px;
+                    font-weight: 700;
+                    color: #1c1a17;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Rectangle { }
+                close_btn := TouchArea {
+                    width: 22px;
+                    clicked => { root.close(); }
+                    Text {
+                        text: "×";
+                        font-size: 15px;
+                        color: close_btn.has-hover ? #1c1a17 : #8a857c;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            if root.note != "": Text {
+                text: root.note;
+                font-size: 11px;
+                color: #8a857c;
+            }
+
+            Flickable {
+                height: min(body_text.preferred-height, 280px);
+                viewport-height: body_text.preferred-height;
+                body_text := Text {
+                    text: root.body;
+                    font-size: 13px;
+                    color: #33302b;
+                    wrap: word-wrap;
+                    width: root.width - 28px;
+                }
+            }
+
+            Text {
+                text: "Built with Slint";
+                font-size: 9px;
+                color: #b5b0a6;
+                horizontal-alignment: right;
+            }
+        }
+
+        // Esc fecha o popup.
+        FocusScope {
+            init => { self.focus(); }
+            key-pressed(event) => {
+                if (event.text == Key.Escape) {
+                    root.close();
+                    return accept;
+                }
+                reject
+            }
+        }
+    }
+}
