@@ -1,0 +1,20 @@
+[package]
+name = "dictos-platform-windows"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Integração do DictOS com o Windows: hotkey global, captura UIA e clipboard"
+
+[dependencies]
+dictos-selection = { path = "../selection" }
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+uiautomation = "0.24"
+global-hotkey = "0.8"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }

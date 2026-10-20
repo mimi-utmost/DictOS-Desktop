@@ -4,6 +4,7 @@ members = [
     "crates/core",
     "crates/dictionary",
     "crates/dictos",
+    "crates/platform-windows",
     "crates/selection",
 ]
 
