@@ -55,10 +55,47 @@ enum Command {
         /// Diretório do dicionário.
         #[arg(long)]
         dict: PathBuf,
-        /// Atalho global (ex.: "Ctrl+Shift+D").
-        #[arg(long, default_value = "Ctrl+Shift+D")]
-        hotkey: String,
+        /// Atalho global (ex.: "Ctrl+Shift+D"). Tem precedência sobre o
+        /// configurado em `config set hotkey`.
+        #[arg(long)]
+        hotkey: Option<String>,
     },
+    /// Lê e altera preferências persistidas.
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+    /// Histórico opcional de consultas (desligado por padrão).
+    History {
+        #[command(subcommand)]
+        action: HistoryAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Lê o valor efetivo de uma chave (ex.: hotkey).
+    Get { key: String },
+    /// Define uma chave (ex.: config set hotkey "Ctrl+Alt+D").
+    Set { key: String, value: String },
+    /// Lista todas as chaves efetivas (defaults + definidas).
+    List,
+}
+
+#[derive(Subcommand)]
+enum HistoryAction {
+    /// Lista as consultas mais recentes.
+    List {
+        /// Máximo de entradas.
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+    /// Apaga todo o histórico.
+    Clear,
+    /// Liga o registro de histórico (opt-in).
+    On,
+    /// Desliga o registro de histórico.
+    Off,
 }
 
 fn main() -> ExitCode {
@@ -82,8 +119,98 @@ fn run(cli: Cli) -> Result<()> {
             dict,
             limit,
         } => suggest(&prefix, &dict, limit),
-        Command::Run { dict, hotkey } => run_daemon(&dict, &hotkey),
+        Command::Run { dict, hotkey } => run_daemon(&dict, hotkey.as_deref()),
+        Command::Config { action } => config(action),
+        Command::History { action } => history_cmd(action),
     }
+}
+
+fn open_settings() -> Result<dictos_settings::Settings> {
+    dictos_settings::Settings::open()
+        .with_context(|| "falha ao abrir o banco de preferências".to_string())
+}
+
+fn config(action: ConfigAction) -> Result<()> {
+    use dictos_settings::DEFAULTS;
+
+    let settings = open_settings()?;
+    match action {
+        ConfigAction::Get { key } => println!("{}", settings.get_effective(&key)),
+        ConfigAction::Set { key, value } => {
+            settings.set(&key, &value)?;
+            println!("{key} = {value}");
+        }
+        ConfigAction::List => {
+            let explicit: std::collections::HashMap<String, String> =
+                settings.list()?.into_iter().collect();
+            let mut keys: Vec<&str> = DEFAULTS.iter().map(|(k, _)| *k).collect();
+            for key in explicit.keys() {
+                if !keys.contains(&key.as_str()) {
+                    keys.push(key);
+                }
+            }
+            keys.sort();
+            for key in keys {
+                let value = explicit
+                    .get(key)
+                    .cloned()
+                    .unwrap_or_else(|| settings.get_effective(key));
+                println!("{key} = {value}");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn history_cmd(action: HistoryAction) -> Result<()> {
+    use dictos_history::History;
+    use dictos_platform_windows::dpapi::DpapiProtector;
+
+    match action {
+        HistoryAction::On | HistoryAction::Off => {
+            let settings = open_settings()?;
+            let enabled = matches!(action, HistoryAction::On);
+            settings.set(
+                dictos_settings::KEY_HISTORY_ENABLED,
+                if enabled { "true" } else { "false" },
+            )?;
+            println!(
+                "histórico {} ({})."
+                ,
+                if enabled { "ligado" } else { "desligado" },
+                if enabled {
+                    "as palavras consultadas serão registradas, criptografadas, neste computador"
+                } else {
+                    "nada novo será registrado; use `dictos history clear` para apagar o existente"
+                }
+            );
+            Ok(())
+        }
+        HistoryAction::List { limit } => {
+            let history = History::open(dictos_settings::db_path(), &DpapiProtector)?;
+            for entry in history.list(limit)? {
+                println!(
+                    "{}  {:<24}  {}",
+                    dictos_history::format_utc(entry.looked_up_at),
+                    entry.word,
+                    if entry.found { "encontrada" } else { "desconhecida" },
+                );
+            }
+            Ok(())
+        }
+        HistoryAction::Clear => {
+            let history = History::open(dictos_settings::db_path(), &DpapiProtector)?;
+            history.clear()?;
+            println!("histórico apagado.");
+            Ok(())
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn history_cmd(_action: HistoryAction) -> Result<()> {
+    bail!("o histórico depende de criptografia do sistema (DPAPI); só Windows nesta etapa");
 }
 
 fn import(input: &PathBuf, out: &PathBuf) -> Result<()> {
@@ -159,27 +286,52 @@ fn format_result(result: &LookupResult) -> String {
 
 
 #[cfg(windows)]
-fn run_daemon(dict_dir: &PathBuf, hotkey: &str) -> Result<()> {
+fn run_daemon(dict_dir: &PathBuf, hotkey_flag: Option<&str>) -> Result<()> {
+    use dictos_history::History;
     use dictos_platform_windows as win;
     use dictos_popup::{slint, PlacementContext, SlintPopup};
+    use dictos_settings::{Settings, KEY_FONT_SCALE, KEY_HISTORY_ENABLED, KEY_HOTKEY};
 
     // DPI Per-Monitor V2: todas as coordenadas (âncora UIA, cursor, work
     // area, posição do popup) passam a ser pixels físicos reais.
     win::monitor::set_per_monitor_v2_awareness();
 
+    let settings = Settings::open().context("falha ao abrir o banco de preferências")?;
+    let hotkey = match hotkey_flag {
+        Some(flag) => flag.to_string(),
+        None => settings.get_effective(KEY_HOTKEY),
+    };
+    let history_enabled = settings.get_or(KEY_HISTORY_ENABLED, "false") == "true";
+    let font_scale: f32 = settings
+        .get_effective(KEY_FONT_SCALE)
+        .parse()
+        .unwrap_or(1.0);
+
     let dictionary = Dictionary::open(dict_dir)
         .with_context(|| format!("falha ao abrir dicionário em {}", dict_dir.display()))?;
-    let parsed = win::hotkey::parse_hotkey(hotkey).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    let parsed = win::hotkey::parse_hotkey(&hotkey).map_err(|e| anyhow::anyhow!(e.to_string()))?;
     let (_manager, receiver) =
         win::hotkey::register(&parsed).map_err(|e| anyhow::anyhow!(e.to_string()))?;
 
-    eprintln!("DictOS ativo — hotkey: {hotkey}. Selecione texto e pressione o atalho. Ctrl+C para sair.");
+    eprintln!(
+        "DictOS ativo — hotkey: {hotkey}. Histórico: {}. Selecione texto e pressione o atalho.",
+        if history_enabled { "ligado" } else { "desligado" }
+    );
 
     let popup = SlintPopup::new().context("falha ao criar popup")?;
+    popup.set_font_scale(font_scale);
     let weak = popup.as_weak();
 
     std::thread::spawn(move || {
         let uia = win::uia::UiaSelectionProvider;
+        let protector = win::dpapi::DpapiProtector;
+        let history = history_enabled.then(|| {
+            History::open(dictos_settings::db_path(), &protector)
+                .map_err(|e| eprintln!("[dictos] histórico indisponível: {e}"))
+                .ok()
+        });
+        let history = history.flatten();
+
         for event in receiver.iter() {
             if event.state != win::hotkey::HotKeyState::Pressed {
                 continue;
@@ -189,6 +341,11 @@ fn run_daemon(dict_dir: &PathBuf, hotkey: &str) -> Result<()> {
             match &outcome.result {
                 Ok(view) => eprintln!("[dictos] lookup ok: {}", view.word),
                 Err((title, _)) => eprintln!("[dictos] {title}"),
+            }
+            if let (Some(history), Some(query)) = (&history, &outcome.query) {
+                if let Err(e) = history.record(query, outcome.result.is_ok()) {
+                    eprintln!("[dictos] falha ao registrar histórico: {e}");
+                }
             }
             let placement = outcome.anchor.map(|anchor| PlacementContext {
                 anchor,
@@ -221,11 +378,13 @@ fn run_daemon(dict_dir: &PathBuf, hotkey: &str) -> Result<()> {
 }
 
 /// Resultado de um ciclo hotkey → captura → lookup, com a âncora da seleção
-/// (mesmo quando a consulta falha, para posicionar a mensagem de erro).
+/// (mesmo quando a consulta falha, para posicionar a mensagem de erro) e a
+/// consulta normalizada (para o histórico, quando habilitado).
 #[cfg(windows)]
 struct LookupOutcome {
     result: std::result::Result<dictos_popup::LookupView, (String, String)>,
     anchor: Option<dictos_selection::ScreenRect>,
+    query: Option<String>,
 }
 
 #[cfg(windows)]
@@ -244,6 +403,7 @@ fn capture_and_lookup(
                 "A janela em foco é o próprio DictOS.".to_string(),
             )),
             anchor: None,
+            query: None,
         };
     }
 
@@ -259,6 +419,7 @@ fn capture_and_lookup(
                     "Este aplicativo não expõe a seleção e não permite captura segura por Ctrl+C.".to_string(),
                 )),
                 anchor: None,
+                query: None,
             };
         }
         (false, _) => {
@@ -268,6 +429,7 @@ fn capture_and_lookup(
                     "Este aplicativo não permite captura de seleção.".to_string(),
                 )),
                 anchor: None,
+                query: None,
             };
         }
         (_, Err(other)) => Err(other),
@@ -290,13 +452,15 @@ fn capture_and_lookup(
             return LookupOutcome {
                 result: Err(message),
                 anchor: None,
+                query: None,
             };
         }
     };
 
     let anchor = selection.anchor;
+    let query = extract_query(&selection.text);
     let result = (|| {
-        let query = extract_query(&selection.text).ok_or_else(|| {
+        let query = query.clone().ok_or_else(|| {
             (
                 "Seleção longa demais".to_string(),
                 "Selecione uma palavra ou expressão curta (até 5 palavras).".to_string(),
@@ -313,10 +477,10 @@ fn capture_and_lookup(
         }
     })();
 
-    LookupOutcome { result, anchor }
+    LookupOutcome { result, anchor, query }
 }
 
 #[cfg(not(windows))]
-fn run_daemon(_dict_dir: &PathBuf, _hotkey: &str) -> Result<()> {
+fn run_daemon(_dict_dir: &PathBuf, _hotkey: Option<&str>) -> Result<()> {
     bail!("o daemon está disponível apenas no Windows nesta etapa (Linux chega na Etapa 7)");
 }
