@@ -4,6 +4,9 @@ members = [
     "crates/core",
     "crates/dictionary",
     "crates/dictos",
+    "crates/platform-windows",
+    "crates/popup",
+    "crates/selection",
 ]
 
 [workspace.package]

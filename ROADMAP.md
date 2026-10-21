@@ -20,18 +20,22 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 - NOTICES presente e correto (WordNet). ✅
 - Dataset gerado por pipeline reproduzível (comandos em `data/README.md`), dados brutos e gerados fora do git. ✅
 
-## Etapa 3 — MVP Windows
+## Etapa 3 — MVP Windows ✅ (concluída)
 
-**Entrega:** daemon com hotkey global (`global-hotkey`), captura via UIA (`uiautomation`), fallback de clipboard com backup/restore completo (`clipboard-win`), popup Slint, integração ponta a ponta.
+**Entrega:** daemon `dictos run` com hotkey global (`global-hotkey`), captura via UIA (`uiautomation`), fallback de clipboard com backup/restore completo (bindings `windows` 0.62 diretos), popup Slint, integração ponta a ponta.
 
 **Critérios de aceitação:**
-- E2E manual: selecionar texto no Bloco de Notas e num navegador → hotkey → popup com definição.
-- Teste automatizado de backup/restore de clipboard (texto e formatos preservados).
-- Falha de captura exibe mensagem clara; clipboard nunca é sobrescrito silenciosamente.
+- E2E manual: selecionar texto no Bloco de Notas → hotkey → popup com definição. ✅ verificado com screenshot (`scripts/e2e-popup.ps1`): "serendipity" retornou definição real do WordNet; "xyzzy" exibiu "Palavra desconhecida"
+- Teste automatizado de backup/restore de clipboard (texto e formatos preservados). ✅ 7 testes em `platform-windows`, incluindo backup/restore real no clipboard do Windows
+- Falha de captura exibe mensagem clara; clipboard nunca é sobrescrito silenciosamente. ✅ restauração falha → erro `ClipboardRestoreFailed`, consulta abortada
+
+**Ressalvas registradas:**
+- Fallback de clipboard (Ctrl+C sintético) tem teste automatizado de backup/restore, mas o caminho completo UIA→fallback ainda não foi exercido E2E em app sem TextPattern.
+- Popup pode não receber foco (processo em background); fecha por clique fora ou no ×. Esc só funciona com foco no popup.
 
 ## Etapa 4 — Robustez Windows
 
-**Entrega:** posicionamento do popup via `GetBoundingRectangles`, blocklist (Excel/terminais), tratamento de erros, DPI-awareness.
+**Entrega:** posicionamento do popup via `GetBoundingRectangles` (bindings Win32 diretos, pois o crate `uiautomation` não expõe esse método), exibição sem roubar foco (`SW_SHOWNA`), blocklist (Excel/terminais), tratamento de erros, DPI-awareness.
 
 **Critérios de aceitação:**
 - Popup aparece junto à seleção em apps com TextPattern.

@@ -36,15 +36,17 @@
 ```
 crates/
 ├── core/              # modelos, normalização, lógica de consulta (sem IO de SO)
-├── dictionary/        # formato próprio, builder, reader, importadores
-├── selection/         # trait de captura + normalização de texto
-├── platform-windows/  # (Etapa 3) UIA, hotkey global, clipboard
+├── dictionary/        # formato próprio, builder, reader, importadores (JSONL, WordNet)
+├── selection/         # trait de captura + tipos + extract_query (sem SO)
+├── platform-windows/  # UIA (uiautomation), hotkey global (global-hotkey), fallback
+│                      # de clipboard com backup/restore (crate windows)
 ├── platform-linux/    # (Etapa 7) ext-data-control, Hyprland IPC
-├── popup/             # trait de UI + impls popup-slint / popup-gtk
+├── popup/             # trait Popup + LookupView + implementação Slint;
+│                      # popup-gtk (Wayland) na Etapa 7
 ├── online/            # (Etapa 6) provedores remotos + cache — off por padrão
 ├── settings/          # (Etapa 5) preferências (SQLite)
 ├── history/           # (Etapa 5) histórico opt-in (SQLite)
-└── dictos/            # binário: CLI agora, daemon nas etapas 3+
+└── dictos/            # binário: CLI (import/lookup/suggest) + daemon (run)
 data/
 └── fixtures/          # dados de teste (datasets grandes ficam fora do git)
 ```
@@ -60,11 +62,13 @@ Dois arquivos por dicionário, num diretório:
 
 Justificativa: dados imutáveis por release, lookup por headword é o caso dominante, FST é compacto e rápido. SQLite FTS5 só se um dia houver busca no texto das definições. StarDict/dictd rejeitados como formato interno (formatos de intercâmbio; usamos JSONL para intercâmbio de importação).
 
-### Windows (Etapa 3-4)
+### Windows (implementado na Etapa 3, refinamentos na 4)
 
-- **Hotkey global:** crate `global-hotkey` (RegisterHotKey; funciona sem janela visível).
-- **Captura:** crate `uiautomation` → `GetFocusedElement` → `TextPattern` → `GetSelection`. Posição do popup via `TextRange.GetBoundingRectangles()`. Processo deve ser DPI-aware.
-- **Fallback clipboard:** `SendInput(Ctrl+C)` com espera por mudança de sequence number; backup e restauração de **todos** os formatos via `clipboard-win`, pulando formatos sintetizados/privados/owner-display. **Se a restauração falhar, a consulta falha e o usuário é avisado — nunca sobrescrever o clipboard silenciosamente.** Blocklist para apps que reagem a Ctrl+C (Excel, terminais).
+- **Hotkey global:** crate `global-hotkey` (RegisterHotKey; funciona sem janela visível). Padrão `Ctrl+Shift+D`, configurável via `--hotkey`.
+- **Captura:** crate `uiautomation` → `GetFocusedElement` → `TextPattern` → `GetSelection`. Sem seleção exposta, cai para o fallback de clipboard.
+- **Fallback clipboard:** `SendInput(Ctrl+C)` (com key-up prévio dos modificadores do hotkey) + espera por mudança de `GetClipboardSequenceNumber` + backup/restauração de todos os formatos (pulando sintetizados, owner-display, privados e delayed-rendered), implementado sobre a crate `windows`. **Se a restauração falhar, a consulta é abortada e o usuário avisado — nunca sobrescrever o clipboard silenciosamente.** Coberto por teste automatizado real.
+- **Posição do popup (MVP):** junto ao cursor do mouse (`GetCursorPos`). A crate `uiautomation` não expõe `TextRange.GetBoundingRectangles`; a âncora precisa na seleção entra na Etapa 4 via bindings Win32 diretos. Processo deve ser DPI-aware.
+- **Foco no MVP:** o Windows bloqueia um processo em background de tomar foreground, então o popup frequentemente abre **sem** foco (verificado em teste real). Esc só fecha com foco; o botão × e clicar fora (polling de `GetAsyncKeyState(VK_LBUTTON)` + cursor fora do rect da janela) fecham sempre. Mostrar sem roubar foco (SW_SHOWNA) fica para a Etapa 4.
 - **Limites aceitos:** apps elevados (UIPI) e jogos/canvas ficam sem captura no MVP.
 
 ### Linux / Hyprland (Etapa 7)

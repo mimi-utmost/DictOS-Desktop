@@ -8,8 +8,13 @@ description = "CLI do DictOS: importar e consultar dicionários"
 [dependencies]
 dictos-core = { path = "../core" }
 dictos-dictionary = { path = "../dictionary" }
+dictos-selection = { path = "../selection" }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
+
+[target.'cfg(windows)'.dependencies]
+dictos-platform-windows = { path = "../platform-windows" }
+dictos-popup = { path = "../popup" }
 
 [dev-dependencies]
 tempfile = "3"

@@ -50,6 +50,15 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
+    /// Sobe o daemon: hotkey global → captura de seleção → popup de consulta.
+    Run {
+        /// Diretório do dicionário.
+        #[arg(long)]
+        dict: PathBuf,
+        /// Atalho global (ex.: "Ctrl+Shift+D").
+        #[arg(long, default_value = "Ctrl+Shift+D")]
+        hotkey: String,
+    },
 }
 
 fn main() -> ExitCode {
@@ -73,6 +82,7 @@ fn run(cli: Cli) -> Result<()> {
             dict,
             limit,
         } => suggest(&prefix, &dict, limit),
+        Command::Run { dict, hotkey } => run_daemon(&dict, &hotkey),
     }
 }
 
@@ -145,4 +155,107 @@ fn format_result(result: &LookupResult) -> String {
         }
     }
     out
+}
+
+
+#[cfg(windows)]
+fn run_daemon(dict_dir: &PathBuf, hotkey: &str) -> Result<()> {
+    use dictos_platform_windows as win;
+    use dictos_popup::{slint, SlintPopup};
+
+    let dictionary = Dictionary::open(dict_dir)
+        .with_context(|| format!("falha ao abrir dicionário em {}", dict_dir.display()))?;
+    let parsed = win::hotkey::parse_hotkey(hotkey).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    let (_manager, receiver) =
+        win::hotkey::register(&parsed).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+
+    eprintln!("DictOS ativo — hotkey: {hotkey}. Selecione texto e pressione o atalho. Ctrl+C para sair.");
+
+    let popup = SlintPopup::new().context("falha ao criar popup")?;
+    let weak = popup.as_weak();
+
+    std::thread::spawn(move || {
+        let uia = win::uia::UiaSelectionProvider;
+        for event in receiver.iter() {
+            if event.state != win::hotkey::HotKeyState::Pressed {
+                continue;
+            }
+            eprintln!("[dictos] hotkey acionado");
+            let outcome = capture_and_lookup(&uia, &dictionary);
+            match &outcome {
+                Ok(view) => eprintln!("[dictos] lookup ok: {}", view.word),
+                Err((title, _)) => eprintln!("[dictos] {title}"),
+            }
+            let weak = weak.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                eprintln!("[dictos] exibindo popup");
+                if let Some(ui) = weak.upgrade() {
+                    match outcome {
+                        Ok(view) => dictos_popup::show_lookup_ui(&ui, &view),
+                        Err((title, message)) => {
+                            dictos_popup::show_message_ui(&ui, &title, &message)
+                        }
+                    }
+                    eprintln!("[dictos] popup exibido");
+                } else {
+                    eprintln!("[dictos] ERRO: weak do popup não upgradou");
+                }
+            });
+        }
+    });
+
+    eprintln!("[dictos] event loop iniciando");
+    // Variante para daemons: o loop continua mesmo com o popup escondido.
+    let loop_result = slint::run_event_loop_until_quit();
+    eprintln!("[dictos] event loop encerrou: {loop_result:?}");
+    loop_result.context("event loop do Slint falhou")?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn capture_and_lookup(
+    uia: &dyn dictos_selection::SelectionProvider,
+    dictionary: &Dictionary,
+) -> std::result::Result<dictos_popup::LookupView, (String, String)> {
+    use dictos_platform_windows as win;
+    use dictos_selection::{extract_query, SelectionError};
+
+    let captured = match uia.capture() {
+        Ok(selection) => Ok(selection),
+        Err(SelectionError::NoSelection) => win::clipboard_fallback::capture_via_clipboard(),
+        Err(other) => Err(other),
+    };
+
+    let selection = captured.map_err(|err| match err {
+        SelectionError::NoSelection => (
+            "Nada para consultar".to_string(),
+            "Nenhum texto selecionado, ou o aplicativo não expõe a seleção.".to_string(),
+        ),
+        SelectionError::ClipboardRestoreFailed => (
+            "Consulta cancelada".to_string(),
+            "Não foi possível restaurar sua área de transferência; a consulta foi abortada para não perder seus dados.".to_string(),
+        ),
+        SelectionError::CaptureFailed(msg) => ("Falha na captura".to_string(), msg),
+    })?;
+
+    let query = extract_query(&selection.text).ok_or_else(|| {
+        (
+            "Seleção longa demais".to_string(),
+            "Selecione uma palavra ou expressão curta (até 5 palavras).".to_string(),
+        )
+    })?;
+
+    match dictionary.lookup(&query) {
+        Ok(result) => Ok(dictos_popup::LookupView::from(&result)),
+        Err(DictError::NotFound(_)) => Err((
+            "Palavra desconhecida".to_string(),
+            format!("'{query}' não está no dicionário offline."),
+        )),
+        Err(err) => Err(("Erro no dicionário".to_string(), err.to_string())),
+    }
+}
+
+#[cfg(not(windows))]
+fn run_daemon(_dict_dir: &PathBuf, _hotkey: &str) -> Result<()> {
+    bail!("o daemon está disponível apenas no Windows nesta etapa (Linux chega na Etapa 7)");
 }
