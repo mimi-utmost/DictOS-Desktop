@@ -2,6 +2,12 @@
 # Uso: rode o daemon primeiro (`dictos run --dict data/dict/en-wordnet`), depois:
 #   powershell -ExecutionPolicy Bypass -File scripts/e2e-popup.ps1 [-Word xyzzy]
 #
+# AVISO: este script faz captura de tela, envia teclas sintéticas e lê texto
+# de outros apps via UI Automation — padrão comportamental que antivírus
+# (ex.: Windows Defender) podem classificar como falso positivo
+# (Trojan:BAT/ScreenShoter). É uma ferramenta de teste legítima; não contorne
+# isso com evasão, configure exclusão no seu ambiente de dev se necessário.
+#
 # Verifica, com uma seleção real no Bloco de Notas:
 #   1. popup aparece junto à seleção (distância <= tolerância);
 #   2. o foco NÃO sai do Notepad quando o popup abre;

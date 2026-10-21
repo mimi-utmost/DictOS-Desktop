@@ -70,9 +70,11 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 
 ## Etapa 8 — Distribuição
 
-**Entrega:** instalador Windows, instruções de build para Arch, CI com testes, tela About com todas as atribuições.
+**Entrega:** instalador Windows, instruções de build para Arch, CI com testes, tela About com todas as atribuições, e **pacote confiável para antivírus** (ver "Confiança e antivírus" no SPEC).
 
 **Critérios de aceitação:**
 - Instalador Windows instala e executa o fluxo E2E.
 - Build no Arch documentado e reproduzido.
 - CI verde em Windows e Linux para o núcleo.
+- Binário release com metadados completos (CompanyName, FileDescription, versão) e assinado com Authenticode + timestamp.
+- Scan do artefato final no VirusTotal antes de cada release; falso positivo é tratado como bloqueador: submeter ao fornecedor antes de publicar.
