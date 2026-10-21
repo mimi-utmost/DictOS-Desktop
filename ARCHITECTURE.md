@@ -62,13 +62,16 @@ Dois arquivos por dicionário, num diretório:
 
 Justificativa: dados imutáveis por release, lookup por headword é o caso dominante, FST é compacto e rápido. SQLite FTS5 só se um dia houver busca no texto das definições. StarDict/dictd rejeitados como formato interno (formatos de intercâmbio; usamos JSONL para intercâmbio de importação).
 
-### Windows (implementado na Etapa 3, refinamentos na 4)
+### Windows (implementado nas Etapas 3 e 4)
 
 - **Hotkey global:** crate `global-hotkey` (RegisterHotKey; funciona sem janela visível). Padrão `Ctrl+Shift+D`, configurável via `--hotkey`.
-- **Captura:** crate `uiautomation` → `GetFocusedElement` → `TextPattern` → `GetSelection`. Sem seleção exposta, cai para o fallback de clipboard.
+- **Captura:** crate `uiautomation` → `GetFocusedElement` → `TextPattern` → `GetSelection`. Sem seleção exposta, cai para o fallback de clipboard **se a política do app permitir**.
+- **Política por app (Etapa 4):** classe da janela em foreground decide: terminais (`ConsoleWindowClass`, `CASCADIA_HOSTING_WINDOW_CLASS`, `mintty`) e Excel (`XLMAIN`) nunca recebem Ctrl+C simulado (interrompe o shell / copia a célula); UIA ainda é tentada. Janela do próprio DictOS: captura ignorada.
 - **Fallback clipboard:** `SendInput(Ctrl+C)` (com key-up prévio dos modificadores do hotkey) + espera por mudança de `GetClipboardSequenceNumber` + backup/restauração de todos os formatos (pulando sintetizados, owner-display, privados e delayed-rendered), implementado sobre a crate `windows`. **Se a restauração falhar, a consulta é abortada e o usuário avisado — nunca sobrescrever o clipboard silenciosamente.** Coberto por teste automatizado real.
-- **Posição do popup (MVP):** junto ao cursor do mouse (`GetCursorPos`). A crate `uiautomation` não expõe `TextRange.GetBoundingRectangles`; a âncora precisa na seleção entra na Etapa 4 via bindings Win32 diretos. Processo deve ser DPI-aware.
-- **Foco no MVP:** o Windows bloqueia um processo em background de tomar foreground, então o popup frequentemente abre **sem** foco (verificado em teste real). Esc só fecha com foco; o botão × e clicar fora (polling de `GetAsyncKeyState(VK_LBUTTON)` + cursor fora do rect da janela) fecham sempre. Mostrar sem roubar foco (SW_SHOWNA) fica para a Etapa 4.
+- **Âncora (Etapa 4):** `IUIAutomationTextRange::GetBoundingRectangles` via `AsRef` (o crate `uiautomation` resolve para o mesmo `windows` 0.62) → primeiro retângulo não degenerado do SAFEARRAY. Sem retângulo (seleção rolada para fora etc.), cai no cursor do mouse.
+- **Posição do popup (Etapa 4):** abaixo da âncora (acima se não couber), clampado à work area do monitor da âncora (`MonitorFromRect` + `GetMonitorInfoW`). Posicionamento em pixels físicos (`PhysicalPosition`).
+- **DPI (Etapa 4):** processo Per-Monitor V2 (`SetProcessDpiAwarenessContext` no início do daemon) — todas as coordenadas (UIA, cursor, work area, popup) são físicas e consistentes entre monitores de escalas diferentes.
+- **Foco (Etapa 4):** o popup é `WS_EX_NOACTIVATE` + `SWP_NOACTIVATE` e restaura o foreground anterior se o `show()` do winit ativar a janela mesmo assim. Como nunca tem foco, Esc e clique-fora são detectados por polling global de `GetAsyncKeyState` (bit "pressionada desde a última chamada", que não perde apertos curtos). × continua no popup.
 - **Limites aceitos:** apps elevados (UIPI) e jogos/canvas ficam sem captura no MVP.
 
 ### Linux / Hyprland (Etapa 7)

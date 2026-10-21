@@ -50,7 +50,7 @@ Aplicativo desktop inspirado na experiência de consulta rápida do Apple Dictio
 | Risco | Mitigação |
 |---|---|
 | Chromium/Electron não expõem seleção via UIA por padrão; provider UIA do Chrome ~140+ é instável | Fallback de clipboard; testar contra versões correntes na Etapa 3 |
-| Processo em background não toma foreground no Windows: popup pode abrir sem foco (verificado na Etapa 3) | Fecha por clique fora ou no ×; Etapa 4 avalia `SW_SHOWNA` e posicionamento sem ativação |
+| Processo em background não toma foreground no Windows: popup abre sem foco | Resolvido na Etapa 4: popup NOACTIVATE por design, fecha por Esc/×/clique fora via polling global; foco permanece no app de origem |
 | Apps elevados bloqueiam UIA e SendInput (UIPI) | Fora do MVP; exigiria build assinado com `uiAccess` — documentar |
 | Apps que reagem mal a Ctrl+C simulado (Excel, terminais) | Blocklist de classes de janela; nunca sobrescrever o clipboard silenciosamente |
 | Cobertura de traduções en–pt do Kaikki é irregular | Múltiplas fontes CC BY-SA; métrica de cobertura na Etapa 6 |

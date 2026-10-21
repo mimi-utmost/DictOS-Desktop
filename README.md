@@ -13,10 +13,10 @@ Requisitos em [SPEC.md](SPEC.md) · Arquitetura em [ARCHITECTURE.md](ARCHITECTUR
 
 ## Status
 
-**Etapa 3 de 8 concluída** — MVP Windows funcionando ponta a ponta: atalho
-global (`Ctrl+Shift+D`), captura da seleção via UI Automation (com fallback de
-clipboard que preserva e restaura o conteúdo), consulta no WordNet offline e
-popup Slint. Verificado com teste E2E real (Bloco de Notas + screenshot).
+**Etapa 4 de 8 concluída** — MVP Windows robusto: popup ancorado na seleção
+(via UIA `GetBoundingRectangles`), sem roubar foco (NOACTIVATE + restauração
+de foreground), fecha com Esc/×/clique fora mesmo sem foco, DPI Per-Monitor
+V2 e política por app (terminais e Excel nunca recebem Ctrl+C simulado).
 
 ## Roadmap
 
@@ -25,8 +25,8 @@ popup Slint. Verificado com teste E2E real (Bloco de Notas + screenshot).
 | 1. Fundação | Workspace, `core` + `dictionary` (fst), CLI `import/lookup/suggest`, 13 testes | ✅ |
 | 2. Dados reais | Importador WordNet 3.1, dataset en–en, NOTICES, pipeline reproduzível | ✅ |
 | 3. MVP Windows | Hotkey global + captura UIA + fallback clipboard + popup Slint + daemon | ✅ |
-| 4. Robustez Windows | Posicionamento junto à seleção, blocklist, DPI, erros de captura | ⬜ próxima |
-| 5. Config + histórico | Preferências (SQLite), histórico opt-in, janela configurável | ⬜ |
+| 4. Robustez Windows | Posicionamento junto à seleção, blocklist, DPI, erros de captura | ✅ |
+| 5. Config + histórico | Preferências (SQLite), histórico opt-in, janela configurável | ⬜ próxima |
 | 6. en–pt + online | Traduções Kaikki (CC BY-SA), provedor online opcional com cache | ⬜ |
 | 7. Linux/Hyprland | ext-data-control, bind no hyprland.conf, popup GTK4 layer-shell | ⬜ |
 | 8. Distribuição | Instalador Windows, build Arch, CI, tela About | ⬜ |
@@ -54,7 +54,7 @@ powershell -ExecutionPolicy Bypass -File scripts/e2e-popup.ps1
 ## Desenvolvimento
 
 ```sh
-cargo test --workspace   # 37 testes
+cargo test --workspace   # 47 testes
 ```
 
 ## Branches
