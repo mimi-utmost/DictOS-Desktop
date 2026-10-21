@@ -43,13 +43,14 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 - Coordenadas corretas em monitores com escala ≠ 100%. ⚠️ processo agora é Per-Monitor V2 DPI-aware e todas as coordenadas são físicas, mas a máquina de desenvolvimento está em 100% (96 DPI): verificação E2E em HiDPI fica pendente de hardware
 - Popup não rouba foco; Esc/×/clique-fora fecham. ✅ medido no E2E (foreground inalterado; Esc fecha)
 
-## Etapa 5 — Configurações e histórico
+## Etapa 5 — Configurações e histórico ✅ (concluída)
 
-**Entrega:** `settings` (SQLite) para idiomas, fontes, hotkey e comportamento da janela; `history` opt-in.
+**Entrega:** `settings` (SQLite via rusqlite bundled, schema versionado) com `hotkey`, `history.enabled` e `popup.font_scale` (aplicados de verdade no daemon); `history` opt-in com palavra criptografada em repouso via DPAPI (`DpapiProtector`); CLI `config get/set/list` e `history list/clear/on/off`.
 
 **Critérios de aceitação:**
-- Preferências persistem entre execuções.
-- Histórico desligado por padrão; quando ligado, registra e lista consultas.
+- Preferências persistem entre execuções. ✅ teste automatizado (reabertura do banco) + E2E (hotkey e font_scale lidos do banco pelo daemon)
+- Histórico desligado por padrão; quando ligado, registra e lista consultas. ✅ testes + E2E: consultas a "serendipity" (encontrada) e "xyzzy" (desconhecida) registradas e listadas; `history clear` limpa
+- Palavras nunca em texto puro em repouso. ✅ teste automatizado (raw scan do arquivo) + verificação manual no `dictos.db` real
 
 ## Etapa 6 — en–pt e online
 

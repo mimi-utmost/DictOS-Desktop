@@ -26,7 +26,7 @@ Aplicativo desktop inspirado na experiência de consulta rápida do Apple Dictio
 
 - Provedores online ficam **desligados por padrão**.
 - **Nenhuma seleção é transmitida pela rede sem uma ação claramente informada do usuário** (ex.: botão "consultar online" ou toggle explícito nas configurações).
-- Histórico de consultas é **opt-in** e fica apenas na máquina do usuário.
+- Histórico de consultas é **opt-in** e fica apenas na máquina do usuário, com as palavras criptografadas em repouso (DPAPI no Windows; keyring no Linux, Etapa 7).
 - O cache de consultas online é local.
 
 ## Requisitos não funcionais

@@ -9,6 +9,8 @@ description = "CLI do DictOS: importar e consultar dicionários"
 dictos-core = { path = "../core" }
 dictos-dictionary = { path = "../dictionary" }
 dictos-selection = { path = "../selection" }
+dictos-settings = { path = "../settings" }
+dictos-history = { path = "../history" }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 

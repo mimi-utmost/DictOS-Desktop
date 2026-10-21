@@ -2,6 +2,9 @@ export component DictosPopup inherits Window {
     in property <string> word: "";
     in property <string> body: "";
     in property <string> note: "";
+    // Escala de fonte (settings: popup.font_scale). Multiplica todos os
+    // tamanhos de texto do popup.
+    in property <float> font-scale: 1.0;
     callback close();
 
     no-frame: true;
@@ -26,7 +29,7 @@ export component DictosPopup inherits Window {
                 spacing: 8px;
                 Text {
                     text: root.word;
-                    font-size: 17px;
+                    font-size: 17px * root.font-scale;
                     font-weight: 700;
                     color: #1c1a17;
                     vertical-alignment: center;
@@ -38,7 +41,7 @@ export component DictosPopup inherits Window {
                     clicked => { root.close(); }
                     Text {
                         text: "×";
-                        font-size: 15px;
+                        font-size: 15px * root.font-scale;
                         color: close_btn.has-hover ? #1c1a17 : #8a857c;
                         horizontal-alignment: center;
                     }
@@ -47,7 +50,7 @@ export component DictosPopup inherits Window {
 
             if root.note != "": Text {
                 text: root.note;
-                font-size: 11px;
+                font-size: 11px * root.font-scale;
                 color: #8a857c;
             }
 
@@ -56,7 +59,7 @@ export component DictosPopup inherits Window {
                 viewport-height: body_text.preferred-height;
                 body_text := Text {
                     text: root.body;
-                    font-size: 13px;
+                    font-size: 13px * root.font-scale;
                     color: #33302b;
                     wrap: word-wrap;
                     width: root.width - 28px;
@@ -65,7 +68,7 @@ export component DictosPopup inherits Window {
 
             Text {
                 text: "Built with Slint";
-                font-size: 9px;
+                font-size: 9px * root.font-scale;
                 color: #b5b0a6;
                 horizontal-alignment: right;
             }

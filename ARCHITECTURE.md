@@ -74,6 +74,12 @@ Justificativa: dados imutáveis por release, lookup por headword é o caso domin
 - **Foco (Etapa 4):** o popup é `WS_EX_NOACTIVATE` + `SWP_NOACTIVATE` e restaura o foreground anterior se o `show()` do winit ativar a janela mesmo assim. Como nunca tem foco, Esc e clique-fora são detectados por polling global de `GetAsyncKeyState` (bit "pressionada desde a última chamada", que não perde apertos curtos). × continua no popup.
 - **Limites aceitos:** apps elevados (UIPI) e jogos/canvas ficam sem captura no MVP.
 
+### Persistência (implementado na Etapa 5)
+
+- **Banco único SQLite** (`rusqlite` bundled) em `%APPDATA%\DictOS\dictos.db`, override via `DICTOS_DATA_DIR`. Schema versionado por `PRAGMA user_version`.
+- **`settings`**: chave-valor (`hotkey`, `history.enabled`, `popup.font_scale`). O daemon lê na inicialização; a flag `--hotkey` tem precedência sobre o valor persistido.
+- **`history`**: opt-in (desligado por padrão), somente local. A palavra consultada é dado sensível → **sempre criptografada antes de tocar o disco** via trait `Protector`; no Windows, `DpapiProtector` (CryptProtectData, escopo do usuário, sem gerenciamento de chaves). Falha de proteção aborta a gravação — nunca grava em texto puro. Armazena palavra cifrada + achou/não achou + timestamp.
+
 ### Linux / Hyprland (Etapa 7)
 
 - **Seleção:** protocolo `ext-data-control-v1` (Hyprland 0.52.1+), primary selection — sem roubar foco, cobre apps Wayland e XWayland.
