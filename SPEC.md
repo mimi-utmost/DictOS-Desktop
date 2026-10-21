@@ -36,6 +36,20 @@ Aplicativo desktop inspirado na experiência de consulta rápida do Apple Dictio
 - Evitar dependências desnecessárias.
 - Não implementar funcionalidade simulada e apresentá-la como concluída.
 
+## Confiança e antivírus
+
+O app tem, por natureza, comportamentos que antivírus associam a keyloggers/spyware: hotkey global, leitura de seleção de outros apps (UIA), teclas sintéticas no fallback, polling de `GetAsyncKeyState`. A estratégia é **transparência e reputação, nunca evasão** — técnicas para "despistar" antivírus (ofuscação, packing, criptografia de strings) são prática de malware, aumentam falsos positivos e estão proibidas neste projeto.
+
+Medidas obrigatórias para releases:
+
+- **Assinatura de código** (Authenticode + timestamp; certificado EV dá reputação SmartScreen imediata, OV acumula com o tempo).
+- **Metadados completos** no binário: manifesto com identidade de assembly, CompanyName, FileDescription, versão — binário sem metadados parece mais suspeito para heurísticas.
+- **Sem packing/ofuscação**: binário release compilado direto, sem UPX nem similares.
+- **Scan pré-release no VirusTotal**; qualquer detecção é bloqueador e vira submissão de falso positivo ao fornecedor antes da publicação.
+- **Código aberto + build reproduzível**: quem desconfia pode auditar e compilar — é a base da confiança, junto com a assinatura que liga o binário ao fonte.
+- **Comportamento mínimo e documentado**: a captura só acontece no momento do atalho; nada é monitorado continuamente. Isso é requisito de design, não só de marketing — reduz a superfície que heurísticas flagam.
+- Ferramentas de desenvolvimento que disparam AV (ex.: `scripts/e2e-popup.ps1`, que faz screenshot + teclas sintéticas) são documentadas como tal; exclusões de antivírus em ambiente de dev são configuração do usuário, nunca algo que o app ou os scripts configurem sozinhos.
+
 ## Licenciamento
 
 - **Código:** dual MIT / Apache-2.0.
@@ -50,7 +64,7 @@ Aplicativo desktop inspirado na experiência de consulta rápida do Apple Dictio
 | Risco | Mitigação |
 |---|---|
 | Chromium/Electron não expõem seleção via UIA por padrão; provider UIA do Chrome ~140+ é instável | Fallback de clipboard; testar contra versões correntes na Etapa 3 |
-| Processo em background não toma foreground no Windows: popup pode abrir sem foco (verificado na Etapa 3) | Fecha por clique fora ou no ×; Etapa 4 avalia `SW_SHOWNA` e posicionamento sem ativação |
+| Processo em background não toma foreground no Windows: popup abre sem foco | Resolvido na Etapa 4: popup NOACTIVATE por design, fecha por Esc/×/clique fora via polling global; foco permanece no app de origem |
 | Apps elevados bloqueiam UIA e SendInput (UIPI) | Fora do MVP; exigiria build assinado com `uiAccess` — documentar |
 | Apps que reagem mal a Ctrl+C simulado (Excel, terminais) | Blocklist de classes de janela; nunca sobrescrever o clipboard silenciosamente |
 | Cobertura de traduções en–pt do Kaikki é irregular | Múltiplas fontes CC BY-SA; métrica de cobertura na Etapa 6 |

@@ -1074,6 +1074,8 @@ name = "dictos-popup"
 version = "0.1.0"
 dependencies = [
  "dictos-core",
+ "dictos-selection",
+ "raw-window-handle",
  "slint",
  "slint-build",
  "windows",
@@ -4181,6 +4183,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "pin-weak",
+ "raw-window-handle",
  "slint-macros",
  "unicode-segmentation",
  "vtable",

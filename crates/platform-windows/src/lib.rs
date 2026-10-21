@@ -4,8 +4,12 @@
 //! expõe funcionalidade (o núcleo permanece portável).
 
 #[cfg(windows)]
+pub mod app_policy;
+#[cfg(windows)]
 pub mod clipboard_fallback;
 #[cfg(windows)]
 pub mod hotkey;
+#[cfg(windows)]
+pub mod monitor;
 #[cfg(windows)]
 pub mod uia;

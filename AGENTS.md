@@ -71,3 +71,4 @@ Estas regras cobrem também erros típicos de código gerado por IA. Valem para 
 - **Configuração com segredos**: apps que precisarem de chave (ex.: provedor online futuro) leem de variável de ambiente ou cofre do SO; nunca de arquivo commitado. Fornecer `.env.example` sem valores reais.
 - **Desconfiar de entrada externa**: conteúdo capturado de seleção, respostas de rede e dados de dicionário importados são entrada não confiável — validar/limitar tamanho antes de processar ou exibir.
 - **Dependências**: antes de adicionar uma crate, verificar manutenção e procedência; rodar `cargo audit` quando CI existir (Etapa 8).
+- **Antivírus**: nunca implementar técnicas de evasão de AV (ofuscação, packing, strings criptografadas para esconder comportamento). Confiança se constrói com assinatura de código, metadados e transparência — ver "Confiança e antivírus" em SPEC.md.

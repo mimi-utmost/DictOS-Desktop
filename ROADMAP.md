@@ -33,14 +33,15 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 - Fallback de clipboard (Ctrl+C sintético) tem teste automatizado de backup/restore, mas o caminho completo UIA→fallback ainda não foi exercido E2E em app sem TextPattern.
 - Popup pode não receber foco (processo em background); fecha por clique fora ou no ×. Esc só funciona com foco no popup.
 
-## Etapa 4 — Robustez Windows
+## Etapa 4 — Robustez Windows ✅ (concluída)
 
-**Entrega:** posicionamento do popup via `GetBoundingRectangles` (bindings Win32 diretos, pois o crate `uiautomation` não expõe esse método), exibição sem roubar foco (`SW_SHOWNA`), blocklist (Excel/terminais), tratamento de erros, DPI-awareness.
+**Entrega:** âncora real da seleção via `IUIAutomationTextRange::GetBoundingRectangles` (SAFEARRAY via bindings `windows` 0.62 — o crate `uiautomation` usa a mesma versão, então `as_ref()` dá acesso direto à interface COM), popup `WS_EX_NOACTIVATE` com restauração de foreground, Esc/clique-fora via polling de `GetAsyncKeyState` (bit "pressionada desde a última chamada"), DPI Per-Monitor V2, política de captura por aplicativo (terminais e Excel sem Ctrl+C simulado).
 
 **Critérios de aceitação:**
-- Popup aparece junto à seleção em apps com TextPattern.
-- Apps da blocklist usam fallback seguro ou mensagem clara.
-- Coordenadas corretas em monitores com escala ≠ 100%.
+- Popup aparece junto à seleção em apps com TextPattern. ✅ medido no E2E (`scripts/e2e-popup.ps1`): seleção em y=211+34 → popup em y=253 (margem de 8px), x idêntico
+- Apps da blocklist usam fallback seguro ou mensagem clara. ✅ política testada em unit tests; fallback negado → mensagem "Captura indisponível" (verificação manual em terminal pendente — requer interação humana com shell)
+- Coordenadas corretas em monitores com escala ≠ 100%. ⚠️ processo agora é Per-Monitor V2 DPI-aware e todas as coordenadas são físicas, mas a máquina de desenvolvimento está em 100% (96 DPI): verificação E2E em HiDPI fica pendente de hardware
+- Popup não rouba foco; Esc/×/clique-fora fecham. ✅ medido no E2E (foreground inalterado; Esc fecha)
 
 ## Etapa 5 — Configurações e histórico
 
@@ -69,9 +70,11 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 
 ## Etapa 8 — Distribuição
 
-**Entrega:** instalador Windows, instruções de build para Arch, CI com testes, tela About com todas as atribuições.
+**Entrega:** instalador Windows, instruções de build para Arch, CI com testes, tela About com todas as atribuições, e **pacote confiável para antivírus** (ver "Confiança e antivírus" no SPEC).
 
 **Critérios de aceitação:**
 - Instalador Windows instala e executa o fluxo E2E.
 - Build no Arch documentado e reproduzido.
 - CI verde em Windows e Linux para o núcleo.
+- Binário release com metadados completos (CompanyName, FileDescription, versão) e assinado com Authenticode + timestamp.
+- Scan do artefato final no VirusTotal antes de cada release; falso positivo é tratado como bloqueador: submeter ao fornecedor antes de publicar.

@@ -161,7 +161,11 @@ fn format_result(result: &LookupResult) -> String {
 #[cfg(windows)]
 fn run_daemon(dict_dir: &PathBuf, hotkey: &str) -> Result<()> {
     use dictos_platform_windows as win;
-    use dictos_popup::{slint, SlintPopup};
+    use dictos_popup::{slint, PlacementContext, SlintPopup};
+
+    // DPI Per-Monitor V2: todas as coordenadas (âncora UIA, cursor, work
+    // area, posição do popup) passam a ser pixels físicos reais.
+    win::monitor::set_per_monitor_v2_awareness();
 
     let dictionary = Dictionary::open(dict_dir)
         .with_context(|| format!("falha ao abrir dicionário em {}", dict_dir.display()))?;
@@ -182,18 +186,22 @@ fn run_daemon(dict_dir: &PathBuf, hotkey: &str) -> Result<()> {
             }
             eprintln!("[dictos] hotkey acionado");
             let outcome = capture_and_lookup(&uia, &dictionary);
-            match &outcome {
+            match &outcome.result {
                 Ok(view) => eprintln!("[dictos] lookup ok: {}", view.word),
                 Err((title, _)) => eprintln!("[dictos] {title}"),
             }
+            let placement = outcome.anchor.map(|anchor| PlacementContext {
+                anchor,
+                work_area: win::monitor::work_area_containing(Some(anchor)),
+            });
             let weak = weak.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 eprintln!("[dictos] exibindo popup");
                 if let Some(ui) = weak.upgrade() {
-                    match outcome {
-                        Ok(view) => dictos_popup::show_lookup_ui(&ui, &view),
+                    match outcome.result {
+                        Ok(view) => dictos_popup::show_lookup_ui(&ui, &view, placement.as_ref()),
                         Err((title, message)) => {
-                            dictos_popup::show_message_ui(&ui, &title, &message)
+                            dictos_popup::show_message_ui(&ui, &title, &message, placement.as_ref())
                         }
                     }
                     eprintln!("[dictos] popup exibido");
@@ -212,47 +220,100 @@ fn run_daemon(dict_dir: &PathBuf, hotkey: &str) -> Result<()> {
     Ok(())
 }
 
+/// Resultado de um ciclo hotkey → captura → lookup, com a âncora da seleção
+/// (mesmo quando a consulta falha, para posicionar a mensagem de erro).
+#[cfg(windows)]
+struct LookupOutcome {
+    result: std::result::Result<dictos_popup::LookupView, (String, String)>,
+    anchor: Option<dictos_selection::ScreenRect>,
+}
+
 #[cfg(windows)]
 fn capture_and_lookup(
     uia: &dyn dictos_selection::SelectionProvider,
     dictionary: &Dictionary,
-) -> std::result::Result<dictos_popup::LookupView, (String, String)> {
+) -> LookupOutcome {
     use dictos_platform_windows as win;
     use dictos_selection::{extract_query, SelectionError};
 
-    let captured = match uia.capture() {
-        Ok(selection) => Ok(selection),
-        Err(SelectionError::NoSelection) => win::clipboard_fallback::capture_via_clipboard(),
-        Err(other) => Err(other),
+    let policy = win::app_policy::foreground_policy();
+    if policy.is_own_process {
+        return LookupOutcome {
+            result: Err((
+                "Nada para consultar".to_string(),
+                "A janela em foco é o próprio DictOS.".to_string(),
+            )),
+            anchor: None,
+        };
+    }
+
+    let captured = match (policy.allow_uia, uia.capture()) {
+        (_, Ok(selection)) => Ok(selection),
+        (true, Err(SelectionError::NoSelection)) if policy.allow_clipboard_fallback => {
+            win::clipboard_fallback::capture_via_clipboard()
+        }
+        (true, Err(SelectionError::NoSelection)) => {
+            return LookupOutcome {
+                result: Err((
+                    "Captura indisponível".to_string(),
+                    "Este aplicativo não expõe a seleção e não permite captura segura por Ctrl+C.".to_string(),
+                )),
+                anchor: None,
+            };
+        }
+        (false, _) => {
+            return LookupOutcome {
+                result: Err((
+                    "Captura indisponível".to_string(),
+                    "Este aplicativo não permite captura de seleção.".to_string(),
+                )),
+                anchor: None,
+            };
+        }
+        (_, Err(other)) => Err(other),
     };
 
-    let selection = captured.map_err(|err| match err {
-        SelectionError::NoSelection => (
-            "Nada para consultar".to_string(),
-            "Nenhum texto selecionado, ou o aplicativo não expõe a seleção.".to_string(),
-        ),
-        SelectionError::ClipboardRestoreFailed => (
-            "Consulta cancelada".to_string(),
-            "Não foi possível restaurar sua área de transferência; a consulta foi abortada para não perder seus dados.".to_string(),
-        ),
-        SelectionError::CaptureFailed(msg) => ("Falha na captura".to_string(), msg),
-    })?;
+    let selection = match captured {
+        Ok(selection) => selection,
+        Err(err) => {
+            let message = match err {
+                SelectionError::NoSelection => (
+                    "Nada para consultar".to_string(),
+                    "Nenhum texto selecionado, ou o aplicativo não expõe a seleção.".to_string(),
+                ),
+                SelectionError::ClipboardRestoreFailed => (
+                    "Consulta cancelada".to_string(),
+                    "Não foi possível restaurar sua área de transferência; a consulta foi abortada para não perder seus dados.".to_string(),
+                ),
+                SelectionError::CaptureFailed(msg) => ("Falha na captura".to_string(), msg),
+            };
+            return LookupOutcome {
+                result: Err(message),
+                anchor: None,
+            };
+        }
+    };
 
-    let query = extract_query(&selection.text).ok_or_else(|| {
-        (
-            "Seleção longa demais".to_string(),
-            "Selecione uma palavra ou expressão curta (até 5 palavras).".to_string(),
-        )
-    })?;
+    let anchor = selection.anchor;
+    let result = (|| {
+        let query = extract_query(&selection.text).ok_or_else(|| {
+            (
+                "Seleção longa demais".to_string(),
+                "Selecione uma palavra ou expressão curta (até 5 palavras).".to_string(),
+            )
+        })?;
 
-    match dictionary.lookup(&query) {
-        Ok(result) => Ok(dictos_popup::LookupView::from(&result)),
-        Err(DictError::NotFound(_)) => Err((
-            "Palavra desconhecida".to_string(),
-            format!("'{query}' não está no dicionário offline."),
-        )),
-        Err(err) => Err(("Erro no dicionário".to_string(), err.to_string())),
-    }
+        match dictionary.lookup(&query) {
+            Ok(result) => Ok(dictos_popup::LookupView::from(&result)),
+            Err(DictError::NotFound(_)) => Err((
+                "Palavra desconhecida".to_string(),
+                format!("'{query}' não está no dicionário offline."),
+            )),
+            Err(err) => Err(("Erro no dicionário".to_string(), err.to_string())),
+        }
+    })();
+
+    LookupOutcome { result, anchor }
 }
 
 #[cfg(not(windows))]
