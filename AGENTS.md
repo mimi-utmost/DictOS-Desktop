@@ -1,5 +1,9 @@
 # DictOS Desktop — Instruções para agentes
 
+## Início de sessão
+
+- No início de toda sessão, verificar se o ai-memory tem versão nova; se tiver, atualizar pelo método original de instalação e avisar o usuário para reiniciar a sessão (a nova versão do MCP só ativa em sessão nova — o agente não reinicia a própria sessão).
+
 ## Fluxo de branches
 
 - Nenhuma alteração vai direto para `master`.
