@@ -8,7 +8,9 @@ build = "build.rs"
 
 [dependencies]
 dictos-core = { path = "../core" }
-slint = "1"
+dictos-selection = { path = "../selection" }
+slint = { version = "1", features = ["raw-window-handle-06"] }
+raw-window-handle = "0.6"
 
 [build-dependencies]
 slint-build = "1"
