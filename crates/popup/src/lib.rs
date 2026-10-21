@@ -144,6 +144,11 @@ impl SlintPopup {
     pub fn as_weak(&self) -> slint::Weak<DictosPopup> {
         self.ui.as_weak()
     }
+
+    /// Aplica a escala de fonte (settings: `popup.font_scale`).
+    pub fn set_font_scale(&self, scale: f32) {
+        self.ui.set_font_scale(scale.max(0.5));
+    }
 }
 
 impl Popup for SlintPopup {
