@@ -1,0 +1,11 @@
+[package]
+name = "dictos-history"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Histórico opcional de consultas do DictOS (opt-in, criptografado em repouso)"
+
+[dependencies]
+dictos-settings = { path = "../settings" }
+rusqlite.workspace = true
+thiserror.workspace = true

@@ -8,6 +8,8 @@ pub mod app_policy;
 #[cfg(windows)]
 pub mod clipboard_fallback;
 #[cfg(windows)]
+pub mod dpapi;
+#[cfg(windows)]
 pub mod hotkey;
 #[cfg(windows)]
 pub mod monitor;
