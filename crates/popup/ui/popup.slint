@@ -6,6 +6,9 @@ export component DictosPopup inherits Window {
     // tamanhos de texto do popup.
     in property <float> font-scale: 1.0;
     callback close();
+    // Ação explícita do usuário: consultar a palavra online (envia a
+    // palavra ao provedor). Nada vai à rede sem este clique.
+    callback consult-online();
 
     no-frame: true;
     always-on-top: true;
@@ -66,11 +69,23 @@ export component DictosPopup inherits Window {
                 }
             }
 
-            Text {
-                text: "Built with Slint";
-                font-size: 9px * root.font-scale;
-                color: #b5b0a6;
-                horizontal-alignment: right;
+            HorizontalLayout {
+                online_btn := TouchArea {
+                    clicked => { root.consult-online(); }
+                    Text {
+                        text: "🌐 Consultar online (envia a palavra)";
+                        font-size: 9px * root.font-scale;
+                        color: online_btn.has-hover ? #2a5fb4 : #8a857c;
+                        vertical-alignment: center;
+                    }
+                }
+                Rectangle { }
+                Text {
+                    text: "Built with Slint";
+                    font-size: 9px * root.font-scale;
+                    color: #b5b0a6;
+                    horizontal-alignment: right;
+                }
             }
         }
 
