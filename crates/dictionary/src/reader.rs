@@ -103,3 +103,35 @@ impl Dictionary {
             .map_err(|e| DictError::Format(format!("payload corrompido no offset {offset}: {e}")))
     }
 }
+
+/// Consulta uma palavra em vários dicionários e funde o resultado: acepções
+/// e traduções de todos, sem duplicatas. `NotFound` só quando a palavra não
+/// existe em nenhum deles.
+pub fn lookup_merged(dicts: &[&Dictionary], word: &str) -> Result<LookupResult, DictError> {
+    let mut merged: Option<LookupResult> = None;
+    for dict in dicts {
+        match dict.lookup(word) {
+            Ok(result) => match &mut merged {
+                None => merged = Some(result),
+                Some(acc) => {
+                    for sense in result.entry.senses {
+                        if !acc.entry.senses.contains(&sense) {
+                            acc.entry.senses.push(sense);
+                        }
+                    }
+                    for translation in result.entry.translations {
+                        if !acc.entry.translations.contains(&translation) {
+                            acc.entry.translations.push(translation);
+                        }
+                    }
+                    acc.diacritic_fallback &= result.diacritic_fallback;
+                }
+            },
+            Err(DictError::NotFound(_)) => {}
+            Err(err) => return Err(err),
+        }
+    }
+    merged.ok_or_else(|| {
+        DictError::NotFound(dictos_core::normalize::normalize_query(word))
+    })
+}
