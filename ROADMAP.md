@@ -52,14 +52,19 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 - Histórico desligado por padrão; quando ligado, registra e lista consultas. ✅ testes + E2E: consultas a "serendipity" (encontrada) e "xyzzy" (desconhecida) registradas e listadas; `history clear` limpa
 - Palavras nunca em texto puro em repouso. ✅ teste automatizado (raw scan do arquivo) + verificação manual no `dictos.db` real
 
-## Etapa 6 — en–pt e online
+## Etapa 6 — en–pt e online ✅ (concluída)
 
-**Entrega:** traduções en–pt via Kaikki (CC BY-SA, download opcional com atribuição); provedor online opcional (ex.: dictionaryapi.dev) com cache local.
+**Entrega:** importador Kaikki/Wiktionary (`dictos import-kaikki`, streaming, `.jsonl`/`.jsonl.gz`, gera NOTICES CC BY-SA no dicionário); consulta multi-dicionário (`lookup_merged`, `--dict` repetível); crate `online` (provedor dictionaryapi.dev + cache SQLite com corpo criptografado via DPAPI, indexado por hash SHA-256 da palavra); flag `--online` no CLI; botão "🌐 Consultar online (envia a palavra)" no popup (o clique é a ação explícita).
 
 **Critérios de aceitação:**
-- Traduções pt exibidas para palavras comuns.
-- Nada é enviado à rede sem ação explícita do usuário (teste/inspeção).
-- Cache permite reconsulta offline de resultados online.
+- Traduções pt exibidas para palavras comuns. ✅ E2E: `apple` → acepções do WordNet + "pt: maçã" do Kaikki, no CLI e no popup (screenshot)
+- Nada é enviado à rede sem ação explícita do usuário. ✅ o único caminho de rede é `consult_online_cached`, chamado só por `--online` (CLI) ou pelo clique no botão; o popup exibe a nota "via dictionaryapi.dev (online)" — verificado no E2E automatizado do botão (clique sintético → log "consulta online solicitada" → popup com nota de origem)
+- Cache permite reconsulta offline de resultados online. ✅ E2E: 1ª consulta a "serendipity" foi à rede; a 2ª respondeu "online: cache hit" sem rede
+
+**Ressalvas registradas:**
+- O dataset en–pt de desenvolvimento é **parcial** (primeiros ~200 MB do JSONL Kaikki: 605 entradas com tradução pt). O pipeline do dataset completo (~523 MB .gz) está documentado em `data/README.md`; rodar o import completo é custoso e fica a cargo do usuário.
+- dictionaryapi.dev é en–en; não há provedor online en–pt nesta etapa.
+- No E2E do botão, "serendipity" já estava no cache (do teste de CLI), então o caminho exercido foi cache → popup; o caminho rede → cache → popup foi verificado via CLI (`--online`).
 
 ## Etapa 7 — Linux / Hyprland
 

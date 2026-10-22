@@ -36,16 +36,18 @@
 ```
 crates/
 ├── core/              # modelos, normalização, lógica de consulta (sem IO de SO)
-├── dictionary/        # formato próprio, builder, reader, importadores (JSONL, WordNet)
+├── dictionary/        # formato próprio, builder, reader (lookup_merged multi-dict),
+│                      # importadores (JSONL, WordNet, Kaikki)
 ├── selection/         # trait de captura + tipos + extract_query (sem SO)
 ├── platform-windows/  # UIA (uiautomation), hotkey global (global-hotkey), fallback
 │                      # de clipboard com backup/restore (crate windows)
 ├── platform-linux/    # (Etapa 7) ext-data-control, Hyprland IPC
 ├── popup/             # trait Popup + LookupView + implementação Slint;
 │                      # popup-gtk (Wayland) na Etapa 7
-├── online/            # (Etapa 6) provedores remotos + cache — off por padrão
-├── settings/          # (Etapa 5) preferências (SQLite)
-├── history/           # (Etapa 5) histórico opt-in (SQLite)
+├── online/            # provedor dictionaryapi.dev (ureq) + cache criptografado —
+│                      # só dispara por ação explícita do usuário
+├── settings/          # preferências (SQLite)
+├── history/           # histórico opt-in (SQLite)
 └── dictos/            # binário: CLI (import/lookup/suggest) + daemon (run)
 data/
 └── fixtures/          # dados de teste (datasets grandes ficam fora do git)
@@ -75,10 +77,17 @@ Justificativa: dados imutáveis por release, lookup por headword é o caso domin
 - **Limites aceitos:** apps elevados (UIPI) e jogos/canvas ficam sem captura no MVP.
 
 ### Persistência (implementado na Etapa 5)
-
 - **Banco único SQLite** (`rusqlite` bundled) em `%APPDATA%\DictOS\dictos.db`, override via `DICTOS_DATA_DIR`. Schema versionado por `PRAGMA user_version`.
 - **`settings`**: chave-valor (`hotkey`, `history.enabled`, `popup.font_scale`). O daemon lê na inicialização; a flag `--hotkey` tem precedência sobre o valor persistido.
 - **`history`**: opt-in (desligado por padrão), somente local. A palavra consultada é dado sensível → **sempre criptografada antes de tocar o disco** via trait `Protector`; no Windows, `DpapiProtector` (CryptProtectData, escopo do usuário, sem gerenciamento de chaves). Falha de proteção aborta a gravação — nunca grava em texto puro. Armazena palavra cifrada + achou/não achou + timestamp.
+
+### Online e cache (implementado na Etapa 6)
+
+- **Multi-dicionário:** `--dict` é repetível no CLI e no daemon; `lookup_merged` consulta os dicionários em ordem e funde acepções/traduções num único resultado (en–en do WordNet + traduções pt do Kaikki no mesmo popup).
+- **Kaikki/Wiktionary (CC BY-SA):** importador streaming (`import_kaikki_translations`) extrai só traduções do idioma-alvo do JSONL raw (aceita `.jsonl` e `.jsonl.gz`); gera entradas só-tradução e grava `NOTICES` de atribuição no diretório do dicionário. Nunca empacotado.
+- **Provedor online:** trait `OnlineProvider`; implementação `DictionaryApiDev` (dictionaryapi.dev, en–en, sem chave) via `ureq` (HTTP simples, sem runtime async). Parse da resposta é função pura testável.
+- **Ação explícita obrigatória:** o único caminho de rede é a flag `--online` (CLI) ou o botão "🌐 Consultar online (envia a palavra)" no popup — o rótulo deixa claro que a palavra sai da máquina. O resultado é exibido com nota de origem ("via dictionaryapi.dev (online)").
+- **Cache:** tabela `online_cache` no mesmo SQLite; chave = SHA-256 da palavra + provedor, corpo da resposta criptografado via `Protector` (DPAPI no Windows) — nem a palavra nem o conteúdo ficam em texto puro em repouso. Reconsulta funciona sem rede.
 
 ### Linux / Hyprland (Etapa 7)
 
@@ -102,7 +111,7 @@ Justificativa: dados imutáveis por release, lookup por headword é o caso domin
 
 - `online` desligado por padrão; chamadas remotas só por ação explícita e informada.
 - `history` opt-in, local.
-- Cache de consultas online em SQLite local.
+- Cache de consultas online em SQLite local, com corpo criptografado (DPAPI) e índice por hash da palavra.
 
 ## Fluxo de consulta
 
