@@ -149,6 +149,18 @@ impl SlintPopup {
     pub fn set_font_scale(&self, scale: f32) {
         self.ui.set_font_scale(scale.max(0.5));
     }
+
+    /// Registra o handler do botão "Consultar online". Recebe a palavra
+    /// atualmente exibida. O handler roda na thread do event loop — quem
+    /// chama deve repassar para uma thread worker (a consulta é bloqueante).
+    pub fn set_online_handler(&self, handler: impl Fn(String) + 'static) {
+        let weak = self.ui.as_weak();
+        self.ui.on_consult_online(move || {
+            if let Some(ui) = weak.upgrade() {
+                handler(ui.get_word().to_string());
+            }
+        });
+    }
 }
 
 impl Popup for SlintPopup {
@@ -175,6 +187,17 @@ pub fn show_lookup_ui(ui: &DictosPopup, view: &LookupView, placement: Option<&Pl
         ""
     };
     present(ui, &view.word, format_body(view), note, placement);
+}
+
+/// Exibe um resultado com nota de origem customizada (ex.: "via
+/// dictionaryapi.dev (online)").
+pub fn show_lookup_ui_with_note(
+    ui: &DictosPopup,
+    view: &LookupView,
+    note: &str,
+    placement: Option<&PlacementContext>,
+) {
+    present(ui, &view.word.clone(), format_body(view), note, placement);
 }
 
 /// Exibe uma mensagem (palavra desconhecida, falha de captura etc.).

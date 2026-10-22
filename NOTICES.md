@@ -42,6 +42,22 @@ any associated documentation shall at all times remain with
 Princeton University and LICENSEE agrees to preserve same.
 ```
 
+## Kaikki.org / Wiktionary (traduções inglês–português — opcional, não distribuído)
+
+O dicionário de traduções en–pt **não é distribuído com o DictOS**. O usuário
+pode, opcionalmente, baixar o JSONL raw do enwiktionary em
+https://kaikki.org/dictionary/rawdata.html e gerar o dicionário localmente com
+`dictos import-kaikki` (ver `data/README.md`).
+
+Esses dados são derivados do Wiktionary em inglês, extraídos pelo wiktextract
+(Tatu Ylonen) e distribuídos por kaikki.org sob **Creative Commons
+Attribution-ShareAlike 3.0 Unported**
+(https://creativecommons.org/licenses/by-sa/3.0/). O dicionário gerado
+permanece sob CC BY-SA 3.0, e o importador grava um arquivo `NOTICES` com esta
+atribuição dentro do diretório do dicionário gerado.
+
+Atribuição: Wiktionary contributors / kaikki.org (Tatu Ylonen).
+
 ## Slint (interface — a partir da Etapa 3)
 
 A interface gráfica usará o toolkit Slint (https://slint.dev) sob a licença

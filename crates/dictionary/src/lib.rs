@@ -13,11 +13,12 @@
 mod builder;
 mod import;
 mod reader;
+pub mod kaikki;
 pub mod wordnet;
 
 pub use builder::DictionaryBuilder;
 pub use import::import_jsonl;
-pub use reader::Dictionary;
+pub use reader::{lookup_merged, Dictionary};
 
 /// Nome do arquivo de índice FST dentro do diretório do dicionário.
 pub const INDEX_FILE: &str = "index.fst";

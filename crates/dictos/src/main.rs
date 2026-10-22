@@ -31,30 +31,45 @@ enum Command {
         #[arg(long)]
         out: PathBuf,
     },
+    /// Importa traduções de um JSONL Kaikki/Wiktionary (.jsonl ou .jsonl.gz)
+    /// para o formato v1 (somente traduções; CC BY-SA — dado opcional).
+    ImportKaikki {
+        /// Arquivo JSONL (ou JSONL.gz) do Kaikki.
+        input: PathBuf,
+        /// Diretório de saída do dicionário.
+        #[arg(long)]
+        out: PathBuf,
+        /// Idioma das traduções (código ISO 639-1).
+        #[arg(long, default_value = "pt")]
+        lang: String,
+    },
     /// Consulta uma palavra no dicionário.
     Lookup {
         /// Palavra a consultar.
         word: String,
-        /// Diretório do dicionário.
+        /// Diretório de dicionário (repita para consultar vários).
+        #[arg(long, required = true)]
+        dict: Vec<PathBuf>,
+        /// Também consulta o provedor online (envia a palavra pela rede).
         #[arg(long)]
-        dict: PathBuf,
+        online: bool,
     },
     /// Sugere headwords por prefixo (autocomplete).
     Suggest {
         /// Prefixo de busca.
         prefix: String,
-        /// Diretório do dicionário.
-        #[arg(long)]
-        dict: PathBuf,
+        /// Diretório de dicionário (repita para consultar vários).
+        #[arg(long, required = true)]
+        dict: Vec<PathBuf>,
         /// Máximo de sugestões.
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
     /// Sobe o daemon: hotkey global → captura de seleção → popup de consulta.
     Run {
-        /// Diretório do dicionário.
-        #[arg(long)]
-        dict: PathBuf,
+        /// Diretório de dicionário (repita para consultar vários).
+        #[arg(long, required = true)]
+        dict: Vec<PathBuf>,
         /// Atalho global (ex.: "Ctrl+Shift+D"). Tem precedência sobre o
         /// configurado em `config set hotkey`.
         #[arg(long)]
@@ -113,7 +128,8 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Import { input, out } => import(&input, &out),
         Command::ImportWordnet { dict_dir, out } => import_wordnet(&dict_dir, &out),
-        Command::Lookup { word, dict } => lookup(&word, &dict),
+        Command::ImportKaikki { input, out, lang } => import_kaikki(&input, &out, &lang),
+        Command::Lookup { word, dict, online } => lookup(&word, &dict, online),
         Command::Suggest {
             prefix,
             dict,
@@ -237,23 +253,111 @@ fn import_wordnet(dict_dir: &PathBuf, out: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn lookup(word: &str, dict: &PathBuf) -> Result<()> {
-    let dict = Dictionary::open(dict)
-        .with_context(|| format!("falha ao abrir dicionário em {}", dict.display()))?;
-    match dict.lookup(word) {
-        Ok(result) => {
-            print!("{}", format_result(&result));
-            Ok(())
-        }
-        Err(DictError::NotFound(word)) => bail!("palavra desconhecida: {word}"),
-        Err(err) => Err(err.into()),
-    }
+fn import_kaikki(input: &PathBuf, out: &PathBuf, lang: &str) -> Result<()> {
+    let (entries, stats) = dictos_dictionary::kaikki::import_kaikki_translations(input, lang)
+        .with_context(|| format!("falha ao importar Kaikki de {}", input.display()))?;
+    DictionaryBuilder::build(entries, out)
+        .with_context(|| format!("falha ao construir dicionário em {}", out.display()))?;
+    dictos_dictionary::kaikki::write_kaikki_notices(out)?;
+    println!(
+        "{} linhas lidas ({} ignoradas); {} entradas com traduções '{}' ({} traduções); NOTICES (CC BY-SA) gravado em {}",
+        stats.lines_read,
+        stats.lines_ignored,
+        stats.entries,
+        lang,
+        stats.translations,
+        out.display()
+    );
+    Ok(())
 }
 
-fn suggest(prefix: &str, dict: &PathBuf, limit: usize) -> Result<()> {
-    let dict = Dictionary::open(dict)
-        .with_context(|| format!("falha ao abrir dicionário em {}", dict.display()))?;
-    for suggestion in dict.lookup_prefix(prefix, limit) {
+fn open_dictionaries(dirs: &[PathBuf]) -> Result<Vec<Dictionary>> {
+    dirs.iter()
+        .map(|dir| {
+            Dictionary::open(dir)
+                .with_context(|| format!("falha ao abrir dicionário em {}", dir.display()))
+        })
+        .collect()
+}
+
+fn lookup(word: &str, dict_dirs: &[PathBuf], online: bool) -> Result<()> {
+    let dicts = open_dictionaries(dict_dirs)?;
+    let refs: Vec<&Dictionary> = dicts.iter().collect();
+    match dictos_dictionary::lookup_merged(&refs, word) {
+        Ok(result) => {
+            print!("{}", format_result(&result));
+        }
+        Err(DictError::NotFound(word)) => {
+            if !online {
+                bail!("palavra desconhecida: {word}");
+            }
+            println!("(offline) palavra desconhecida: {word}");
+        }
+        Err(err) => return Err(err.into()),
+    }
+
+    if online {
+        match consult_online_cached(word) {
+            Ok(result) => {
+                println!("\n— online ({}) —", result.provider);
+                let lookup = LookupResult {
+                    entry: result.entry,
+                    diacritic_fallback: false,
+                };
+                print!("{}", format_result(&lookup));
+            }
+            Err(err) => bail!("consulta online falhou: {err}"),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn consult_online_cached(
+    word: &str,
+) -> Result<dictos_online::OnlineResult, dictos_online::OnlineError> {
+    use dictos_online::{DictionaryApiDev, OnlineCache, OnlineProvider};
+    use dictos_platform_windows::dpapi::DpapiProtector;
+
+    let provider = DictionaryApiDev;
+    let cache = OnlineCache::open(dictos_settings::db_path(), &DpapiProtector)
+        .map_err(|e| dictos_online::OnlineError::Network(e.to_string()))?;
+    if let Ok(Some(body)) = cache.get(word, provider.name()) {
+        eprintln!("[dictos] online: cache hit");
+        return dictos_online::dictionaryapi::parse_entries(&body).map(|entry| {
+            dictos_online::OnlineResult {
+                entry,
+                provider: provider.name(),
+                raw_body: body,
+            }
+        });
+    }
+    let result = provider.fetch(word)?;
+    let _ = cache.put(word, provider.name(), &result.raw_body);
+    Ok(result)
+}
+
+#[cfg(not(windows))]
+fn consult_online_cached(_word: &str) -> Result<dictos_online::OnlineResult, dictos_online::OnlineError> {
+    Err(dictos_online::OnlineError::Network(
+        "cache online depende de DPAPI; só Windows nesta etapa".into(),
+    ))
+}
+
+fn suggest(prefix: &str, dict_dirs: &[PathBuf], limit: usize) -> Result<()> {
+    let dicts = open_dictionaries(dict_dirs)?;
+    let mut seen = std::collections::HashSet::new();
+    let mut suggestions = Vec::new();
+    for dict in &dicts {
+        for suggestion in dict.lookup_prefix(prefix, limit) {
+            if seen.insert(suggestion.clone()) {
+                suggestions.push(suggestion);
+            }
+        }
+    }
+    suggestions.sort();
+    suggestions.truncate(limit);
+    for suggestion in suggestions {
         println!("{suggestion}");
     }
     Ok(())
@@ -286,7 +390,7 @@ fn format_result(result: &LookupResult) -> String {
 
 
 #[cfg(windows)]
-fn run_daemon(dict_dir: &PathBuf, hotkey_flag: Option<&str>) -> Result<()> {
+fn run_daemon(dict_dirs: &[PathBuf], hotkey_flag: Option<&str>) -> Result<()> {
     use dictos_history::History;
     use dictos_platform_windows as win;
     use dictos_popup::{slint, PlacementContext, SlintPopup};
@@ -307,8 +411,7 @@ fn run_daemon(dict_dir: &PathBuf, hotkey_flag: Option<&str>) -> Result<()> {
         .parse()
         .unwrap_or(1.0);
 
-    let dictionary = Dictionary::open(dict_dir)
-        .with_context(|| format!("falha ao abrir dicionário em {}", dict_dir.display()))?;
+    let dicts = open_dictionaries(dict_dirs)?;
     let parsed = win::hotkey::parse_hotkey(&hotkey).map_err(|e| anyhow::anyhow!(e.to_string()))?;
     let (_manager, receiver) =
         win::hotkey::register(&parsed).map_err(|e| anyhow::anyhow!(e.to_string()))?;
@@ -320,6 +423,14 @@ fn run_daemon(dict_dir: &PathBuf, hotkey_flag: Option<&str>) -> Result<()> {
 
     let popup = SlintPopup::new().context("falha ao criar popup")?;
     popup.set_font_scale(font_scale);
+
+    // O botão "Consultar online" roda na thread do event loop; repassa a
+    // palavra para a thread worker, onde o fetch (bloqueante) acontece.
+    let (online_tx, online_rx) = crossbeam_channel::unbounded::<String>();
+    popup.set_online_handler(move |word| {
+        let _ = online_tx.send(word);
+    });
+
     let weak = popup.as_weak();
 
     std::thread::spawn(move || {
@@ -332,40 +443,73 @@ fn run_daemon(dict_dir: &PathBuf, hotkey_flag: Option<&str>) -> Result<()> {
         });
         let history = history.flatten();
 
-        for event in receiver.iter() {
-            if event.state != win::hotkey::HotKeyState::Pressed {
-                continue;
-            }
-            eprintln!("[dictos] hotkey acionado");
-            let outcome = capture_and_lookup(&uia, &dictionary);
-            match &outcome.result {
-                Ok(view) => eprintln!("[dictos] lookup ok: {}", view.word),
-                Err((title, _)) => eprintln!("[dictos] {title}"),
-            }
-            if let (Some(history), Some(query)) = (&history, &outcome.query) {
-                if let Err(e) = history.record(query, outcome.result.is_ok()) {
-                    eprintln!("[dictos] falha ao registrar histórico: {e}");
-                }
-            }
-            let placement = outcome.anchor.map(|anchor| PlacementContext {
-                anchor,
-                work_area: win::monitor::work_area_containing(Some(anchor)),
-            });
-            let weak = weak.clone();
-            let _ = slint::invoke_from_event_loop(move || {
-                eprintln!("[dictos] exibindo popup");
-                if let Some(ui) = weak.upgrade() {
-                    match outcome.result {
-                        Ok(view) => dictos_popup::show_lookup_ui(&ui, &view, placement.as_ref()),
-                        Err((title, message)) => {
-                            dictos_popup::show_message_ui(&ui, &title, &message, placement.as_ref())
+        loop {
+            crossbeam_channel::select! {
+                recv(receiver) -> event => {
+                    let Ok(event) = event else { break };
+                    if event.state != win::hotkey::HotKeyState::Pressed {
+                        continue;
+                    }
+                    eprintln!("[dictos] hotkey acionado");
+                    let outcome = capture_and_lookup(&uia, &dicts);
+                    match &outcome.result {
+                        Ok(view) => eprintln!("[dictos] lookup ok: {}", view.word),
+                        Err((title, _)) => eprintln!("[dictos] {title}"),
+                    }
+                    if let (Some(history), Some(query)) = (&history, &outcome.query) {
+                        if let Err(e) = history.record(query, outcome.result.is_ok()) {
+                            eprintln!("[dictos] falha ao registrar histórico: {e}");
                         }
                     }
-                    eprintln!("[dictos] popup exibido");
-                } else {
-                    eprintln!("[dictos] ERRO: weak do popup não upgradou");
+                    let placement = outcome.anchor.map(|anchor| PlacementContext {
+                        anchor,
+                        work_area: win::monitor::work_area_containing(Some(anchor)),
+                    });
+                    let weak = weak.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        eprintln!("[dictos] exibindo popup");
+                        if let Some(ui) = weak.upgrade() {
+                            match outcome.result {
+                                Ok(view) => dictos_popup::show_lookup_ui(&ui, &view, placement.as_ref()),
+                                Err((title, message)) => {
+                                    dictos_popup::show_message_ui(&ui, &title, &message, placement.as_ref())
+                                }
+                            }
+                            eprintln!("[dictos] popup exibido");
+                        } else {
+                            eprintln!("[dictos] ERRO: weak do popup não upgradou");
+                        }
+                    });
                 }
-            });
+                recv(online_rx) -> word => {
+                    let Ok(word) = word else { continue };
+                    eprintln!("[dictos] consulta online solicitada: {word}");
+                    let outcome = match consult_online_cached(&word) {
+                        Ok(result) => {
+                            let lookup = LookupResult {
+                                entry: result.entry,
+                                diacritic_fallback: false,
+                            };
+                            let view = dictos_popup::LookupView::from(&lookup);
+                            Ok((view, format!("via {} (online)", result.provider)))
+                        }
+                        Err(err) => Err(("Consulta online falhou".to_string(), err.to_string())),
+                    };
+                    let weak = weak.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = weak.upgrade() {
+                            match outcome {
+                                Ok((view, note)) => {
+                                    dictos_popup::show_lookup_ui_with_note(&ui, &view, &note, None)
+                                }
+                                Err((title, message)) => {
+                                    dictos_popup::show_message_ui(&ui, &title, &message, None)
+                                }
+                            }
+                        }
+                    });
+                }
+            }
         }
     });
 
@@ -390,7 +534,7 @@ struct LookupOutcome {
 #[cfg(windows)]
 fn capture_and_lookup(
     uia: &dyn dictos_selection::SelectionProvider,
-    dictionary: &Dictionary,
+    dictionaries: &[Dictionary],
 ) -> LookupOutcome {
     use dictos_platform_windows as win;
     use dictos_selection::{extract_query, SelectionError};
@@ -467,7 +611,8 @@ fn capture_and_lookup(
             )
         })?;
 
-        match dictionary.lookup(&query) {
+        let refs: Vec<&Dictionary> = dictionaries.iter().collect();
+        match dictos_dictionary::lookup_merged(&refs, &query) {
             Ok(result) => Ok(dictos_popup::LookupView::from(&result)),
             Err(DictError::NotFound(_)) => Err((
                 "Palavra desconhecida".to_string(),
@@ -481,6 +626,6 @@ fn capture_and_lookup(
 }
 
 #[cfg(not(windows))]
-fn run_daemon(_dict_dir: &PathBuf, _hotkey: Option<&str>) -> Result<()> {
+fn run_daemon(_dict_dirs: &[PathBuf], _hotkey: Option<&str>) -> Result<()> {
     bail!("o daemon está disponível apenas no Windows nesta etapa (Linux chega na Etapa 7)");
 }

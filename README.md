@@ -13,10 +13,12 @@ Requisitos em [SPEC.md](SPEC.md) · Arquitetura em [ARCHITECTURE.md](ARCHITECTUR
 
 ## Status
 
-**Etapa 5 de 8 concluída** — preferências persistidas em SQLite (`hotkey`,
-`popup.font_scale`, `history.enabled`) e histórico opt-in com as palavras
-consultadas **criptografadas em repouso via DPAPI** (nunca texto puro).
-Novos comandos: `config get/set/list` e `history list/clear/on/off`.
+**Etapa 6 de 8 concluída** — dicionário en–pt (traduções do Kaikki/Wiktionary,
+CC BY-SA, download opcional) consultado em conjunto com o en–en (`--dict`
+repetível), e consulta online opcional ao dictionaryapi.dev: só acontece por
+ação explícita (flag `--online` ou botão "🌐 Consultar online" no popup) e
+grava a resposta num cache local **criptografado via DPAPI**, o que permite
+reconsulta offline.
 
 ## Roadmap
 
@@ -27,8 +29,8 @@ Novos comandos: `config get/set/list` e `history list/clear/on/off`.
 | 3. MVP Windows | Hotkey global + captura UIA + fallback clipboard + popup Slint + daemon | ✅ |
 | 4. Robustez Windows | Posicionamento junto à seleção, blocklist, DPI, erros de captura | ✅ |
 | 5. Config + histórico | Preferências (SQLite), histórico opt-in criptografado (DPAPI), janela configurável | ✅ |
-| 6. en–pt + online | Traduções Kaikki (CC BY-SA), provedor online opcional com cache | ⬜ próxima |
-| 7. Linux/Hyprland | ext-data-control, bind no hyprland.conf, popup GTK4 layer-shell | ⬜ |
+| 6. en–pt + online | Traduções Kaikki (CC BY-SA), multi-dicionário, online opcional com cache criptografado | ✅ |
+| 7. Linux/Hyprland | ext-data-control, bind no hyprland.conf, popup GTK4 layer-shell | ⬜ próxima |
 | 8. Distribuição | Instalador Windows, build Arch, CI, tela About | ⬜ |
 
 Detalhes e critérios de aceitação de cada etapa em [ROADMAP.md](ROADMAP.md).
@@ -39,12 +41,19 @@ Detalhes e critérios de aceitação de cada etapa em [ROADMAP.md](ROADMAP.md).
 # Gerar o dicionário offline (uma vez — ver data/README.md)
 cargo run -p dictos -- import-wordnet data/raw/dict --out data/dict/en-wordnet
 
-# Consultar via CLI
-cargo run -p dictos -- lookup serendipity --dict data/dict/en-wordnet
+# Traduções en–pt (opcional, CC BY-SA — ver data/README.md)
+cargo run -p dictos -- import-kaikki data/raw/kaikki.org-dictionary-English.jsonl.gz --out data/dict/en-pt-kaikki
+
+# Consultar via CLI (repita --dict para combinar dicionários)
+cargo run -p dictos -- lookup apple --dict data/dict/en-wordnet --dict data/dict/en-pt-kaikki
 cargo run -p dictos -- suggest serend --dict data/dict/en-wordnet
 
+# Consulta online opcional (envia a palavra ao dictionaryapi.dev; resposta fica em cache criptografado)
+cargo run -p dictos -- lookup serendipity --dict data/dict/en-wordnet --online
+
 # Daemon: selecione texto em qualquer app e pressione Ctrl+Shift+D
-cargo run -p dictos -- run --dict data/dict/en-wordnet
+# (o popup tem o botão "🌐 Consultar online" para o caso de a palavra faltar offline)
+cargo run -p dictos -- run --dict data/dict/en-wordnet --dict data/dict/en-pt-kaikki
 cargo run -p dictos -- run --dict data/dict/en-wordnet --hotkey "Ctrl+Alt+D"
 
 # Preferências e histórico (opt-in, criptografado via DPAPI)
@@ -59,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File scripts/e2e-popup.ps1
 ## Desenvolvimento
 
 ```sh
-cargo test --workspace   # 58 testes
+cargo test --workspace   # 68 testes
 ```
 
 ## Branches

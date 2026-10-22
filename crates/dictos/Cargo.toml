@@ -11,8 +11,10 @@ dictos-dictionary = { path = "../dictionary" }
 dictos-selection = { path = "../selection" }
 dictos-settings = { path = "../settings" }
 dictos-history = { path = "../history" }
+dictos-online = { path = "../online" }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
+crossbeam-channel = "0.5"
 
 [target.'cfg(windows)'.dependencies]
 dictos-platform-windows = { path = "../platform-windows" }

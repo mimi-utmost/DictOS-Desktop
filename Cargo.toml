@@ -5,6 +5,7 @@ members = [
     "crates/dictionary",
     "crates/dictos",
     "crates/history",
+    "crates/online",
     "crates/platform-windows",
     "crates/popup",
     "crates/selection",
