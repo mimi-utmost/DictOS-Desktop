@@ -13,12 +13,17 @@ Requisitos em [SPEC.md](SPEC.md) · Arquitetura em [ARCHITECTURE.md](ARCHITECTUR
 
 ## Status
 
-**Etapa 6 de 8 concluída** — dicionário en–pt (traduções do Kaikki/Wiktionary,
+**Etapa 6 concluída** — dicionário en–pt (traduções do Kaikki/Wiktionary,
 CC BY-SA, download opcional) consultado em conjunto com o en–en (`--dict`
 repetível), e consulta online opcional ao dictionaryapi.dev: só acontece por
 ação explícita (flag `--online` ou botão "🌐 Consultar online" no popup) e
 grava a resposta num cache local **criptografado via DPAPI**, o que permite
 reconsulta offline.
+
+Um teste de usabilidade com personas simuladas (não-técnico, dev sênior,
+estudante) gerou uma auditoria completa: o roadmap foi reordenado para
+**lapidar o Windows antes de ir para o Linux** — correções críticas, dados
+completos, tradução online de frases e UX para não-técnicos vêm primeiro.
 
 ## Roadmap
 
@@ -30,8 +35,12 @@ reconsulta offline.
 | 4. Robustez Windows | Posicionamento junto à seleção, blocklist, DPI, erros de captura | ✅ |
 | 5. Config + histórico | Preferências (SQLite), histórico opt-in criptografado (DPAPI), janela configurável | ✅ |
 | 6. en–pt + online | Traduções Kaikki (CC BY-SA), multi-dicionário, online opcional com cache criptografado | ✅ |
-| 7. Linux/Hyprland | ext-data-control, bind no hyprland.conf, popup GTK4 layer-shell | ⬜ próxima |
-| 8. Distribuição | Instalador Windows, build Arch, CI, tela About | ⬜ |
+| 6.1. Correções críticas | Restore de clipboard em todo caminho de erro, timeout online, consentimento legível | ⬜ próxima |
+| 6.2. Dados e consulta | Kaikki completo, fallback frase→palavra-base, tradução em destaque | ⬜ |
+| 6.3. Tradução online de frases | Provedor en→pt para texto selecionado, opt-in explícito, cache | ⬜ |
+| 6.4. UX não-técnica | Textos em linguagem humana, erros com próxima ação | ⬜ |
+| 7. Distribuição Windows | Instalador, Authenticode, VirusTotal, About, CI | ⬜ |
+| 8. Linux/Hyprland | ext-data-control, popup GTK4 layer-shell, build Arch (adiada até o Windows estar estável) | ⬜ |
 
 Detalhes e critérios de aceitação de cada etapa em [ROADMAP.md](ROADMAP.md).
 

@@ -16,18 +16,20 @@ Aplicativo desktop inspirado na experiência de consulta rápida do Apple Dictio
 3. Mostrar definição, classe gramatical, tradução e exemplos quando disponíveis.
 4. Suportar dicionários inglês–inglês e inglês–português.
 5. Funcionar offline.
-6. Permitir provedores online opcionais e cache.
+6. Permitir provedores online opcionais e cache — incluindo **tradução online de frases e parágrafos curtos (en→pt)** como complemento do dicionário offline, que cobre palavras.
 7. Preservar a área de transferência sempre que possível.
 8. Tratar falhas de captura, palavras desconhecidas e indisponibilidade da internet.
 9. Permitir configuração de idiomas, fontes e comportamento da janela.
 10. Respeitar a privacidade (ver seção própria).
+11. Quando a seleção for longa demais para o dicionário offline, oferecer a consulta online em vez de um erro sem saída.
 
 ## Privacidade
 
 - Provedores online ficam **desligados por padrão**.
-- **Nenhuma seleção é transmitida pela rede sem uma ação claramente informada do usuário** (ex.: botão "consultar online" ou toggle explícito nas configurações).
-- Histórico de consultas é **opt-in** e fica apenas na máquina do usuário, com as palavras criptografadas em repouso (DPAPI no Windows; keyring no Linux, Etapa 7).
-- O cache de consultas online é local.
+- **Nenhuma seleção é transmitida pela rede sem uma ação claramente informada do usuário.** O aviso deve ser legível e nomear o que sai da máquina ("o texto selecionado", não apenas "a palavra") e o serviço de destino em linguagem humana. Frases podem conter conteúdo pessoal — o consentimento precisa refletir isso.
+- Histórico de consultas é **opt-in** e fica apenas na máquina do usuário, com as palavras criptografadas em repouso (DPAPI no Windows; keyring no Linux, Etapa 8).
+- O cache de consultas online é local, com corpo criptografado e índice por hash com salt (Etapa 6.1).
+- Criptografia DPAPI protege contra outros usuários da máquina e contra disco roubado; **não protege contra malware rodando como o mesmo usuário** — esta limitação é declarada, não escondida.
 
 ## Requisitos não funcionais
 
@@ -47,7 +49,7 @@ Medidas obrigatórias para releases:
 - **Sem packing/ofuscação**: binário release compilado direto, sem UPX nem similares.
 - **Scan pré-release no VirusTotal**; qualquer detecção é bloqueador e vira submissão de falso positivo ao fornecedor antes da publicação.
 - **Código aberto + build reproduzível**: quem desconfia pode auditar e compilar — é a base da confiança, junto com a assinatura que liga o binário ao fonte.
-- **Comportamento mínimo e documentado**: a captura só acontece no momento do atalho; nada é monitorado continuamente. Isso é requisito de design, não só de marketing — reduz a superfície que heurísticas flagam.
+- **Comportamento mínimo e documentado**: a captura de texto só acontece no momento do atalho — nenhum texto é lido continuamente. Hoje existe um polling contínuo de `GetAsyncKeyState` (somente Esc e botão esquerdo) para detectar fechamento do popup; a Etapa 6.1 restringe esse polling aos momentos em que o popup está visível, para alinhar a prática a esta promessa.
 - Ferramentas de desenvolvimento que disparam AV (ex.: `scripts/e2e-popup.ps1`, que faz screenshot + teclas sintéticas) são documentadas como tal; exclusões de antivírus em ambiente de dev são configuração do usuário, nunca algo que o app ou os scripts configurem sozinhos.
 
 ## Licenciamento
@@ -67,6 +69,6 @@ Medidas obrigatórias para releases:
 | Processo em background não toma foreground no Windows: popup abre sem foco | Resolvido na Etapa 4: popup NOACTIVATE por design, fecha por Esc/×/clique fora via polling global; foco permanece no app de origem |
 | Apps elevados bloqueiam UIA e SendInput (UIPI) | Fora do MVP; exigiria build assinado com `uiAccess` — documentar |
 | Apps que reagem mal a Ctrl+C simulado (Excel, terminais) | Blocklist de classes de janela; nunca sobrescrever o clipboard silenciosamente |
-| Cobertura de traduções en–pt do Kaikki é irregular | Múltiplas fontes CC BY-SA; métrica de cobertura na Etapa 6 |
+| Cobertura de traduções en–pt do Kaikki é irregular | Dataset completo gerado na Etapa 6.2; métrica de cobertura no import |
 | Wayland não expõe posição da seleção de outros apps | Popup posicionado perto do cursor do mouse (`hyprctl cursorpos`) |
 | GNOME/Wayland não implementa ext-data-control | Fora do alvo; afeta só portabilidade futura |

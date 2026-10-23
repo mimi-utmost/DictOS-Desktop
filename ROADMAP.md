@@ -66,21 +66,63 @@ Regra geral: uma etapa só é dada como concluída com seus critérios de aceita
 - dictionaryapi.dev é en–en; não há provedor online en–pt nesta etapa.
 - No E2E do botão, "serendipity" já estava no cache (do teste de CLI), então o caminho exercido foi cache → popup; o caminho rede → cache → popup foi verificado via CLI (`--online`).
 
-## Etapa 7 — Linux / Hyprland
+## Etapa 6.1 — Correções críticas (bloqueadores de confiança)
 
-**Entrega:** `platform-linux` (ext-data-control para primary selection, bind no hyprland.conf + daemon single-instance) + `popup-gtk` (GTK4 + gtk4-layer-shell) posicionado pelo cursor (`hyprctl cursorpos`).
+Origem: auditoria técnica do teste de personas simuladas. Estas correções valem mais que feature nova — uma delas (clipboard) torna falsa a promessa central do app.
+
+**Entrega:** restore do clipboard garantido em todo caminho de saída do fallback (inclusive falha de leitura e corrida pós-timeout); timeout e limite de tamanho explícitos no fetch online; botão "consultar online" desabilitado em telas de erro; aviso de privacidade legível e correto ("o texto selecionado" + serviço de destino); polling de `GetAsyncKeyState` restrito ao popup visível; índice do cache online com salt (HMAC local).
 
 **Critérios de aceitação:**
-- E2E no Hyprland equivalente ao MVP Windows: selecionar → atalho → popup.
+- Teste prova que qualquer falha após o Ctrl+C restaura o clipboard; caminho de corrida documentado e mitigado.
+- Fetch travado não congela o daemon (teste com servidor lento/sem resposta).
+- Nenhum botão de rede disponível em tela de erro; consentimento legível (sem fonte minúscula).
+- Polling de teclas parado quando o popup está escondido.
+- `cargo test --workspace` verde.
+
+## Etapa 6.2 — Dados e qualidade da consulta
+
+Origem: convergência das 3 personas — sem tradução real e sem fallback, o app perde para o Google Tradutor.
+
+**Entrega:** dataset en–pt completo (Kaikki full, ~523 MB .gz) com métrica de cobertura no import; fallback frase→palavra-base ("stumbled upon" → "stumble", com aviso "não achei a frase, mas aqui está a palavra base"); popup com tradução em destaque no topo, sentidos limitados aos mais comuns com "ver mais"; aviso explícito quando não há tradução, oferecendo a consulta online.
+
+**Critérios de aceitação:**
+- Palavras das personas ("warranty", "recall", "deadline", "serendipity", "obscure", "ephemeral") têm tradução pt.
+- "stumbled upon" e "lasting impression" retornam algo útil (palavra base), não erro seco.
+- Popup mostra tradução primeiro; sentidos comuns limitados com expansão.
+
+## Etapa 6.3 — Tradução online de frases
+
+**Entrega:** provedor online de tradução en→pt para texto selecionado (frases/parágrafos curtos), como ação explícita do usuário; candidatos sem chave (MyMemory, LibreTranslate) avaliados quanto a termos de uso e limites, com a recomendação registrada; seleção longa demais para o offline passa a oferecer tradução online em vez de erro; cache criptografado cobre frases; falha/limite do provedor vira mensagem clara.
+
+**Critérios de aceitação:**
+- Frase real traduzida en→pt via rede e exibida no popup com nota de origem.
+- Reconsulta da mesma frase responde do cache sem rede.
+- Nenhum envio sem clique explícito; consentimento nomeia "texto selecionado" e o serviço.
+- Seleção longa → popup oferece a tradução online (nunca envia sozinho).
+
+## Etapa 6.4 — UX para não-técnicos
+
+**Entrega:** revisão de todos os textos visíveis ao usuário em linguagem humana ("resultado da internet" em vez de "dictionaryapi.dev"), mensagens de erro com próxima ação sugerida, e demais ajustes das personas que não envolvam distribuição.
+
+**Critérios de aceitação:**
+- Nenhum texto visível usa jargão técnico ou nome de API.
+- Toda mensagem de erro sugere o que fazer em seguida.
+
+## Etapa 7 — Distribuição Windows
+
+**Entrega:** instalador Windows (clique-duplo, sem terminal — inclui baixar/gerar os dicionários), metadados completos do binário, assinatura Authenticode + timestamp, scan VirusTotal pré-release, tela About com todas as atribuições, CI com testes no Windows.
+
+**Critérios de aceitação:**
+- Instalador instala e executa o fluxo E2E numa máquina limpa.
+- Binário release com metadados completos e assinado com Authenticode + timestamp.
+- Scan do artefato final no VirusTotal antes de cada release; falso positivo é bloqueador: submeter ao fornecedor antes de publicar.
+- CI verde para o workspace inteiro no Windows.
+
+## Etapa 8 — Linux / Hyprland (adiada até o Windows estar estável e distribuível)
+
+**Entrega:** `platform-linux` (ext-data-control para primary selection, bind no hyprland.conf + daemon single-instance) + `popup-gtk` (GTK4 + gtk4-layer-shell) posicionado pelo cursor (`hyprctl cursorpos`); instruções de build para Arch; CI do núcleo no Linux.
+
+**Critérios de aceitação:**
+- E2E no Hyprland equivalente ao Windows: selecionar → atalho → popup.
 - Popup renderiza acima de outras janelas na camada overlay.
-
-## Etapa 8 — Distribuição
-
-**Entrega:** instalador Windows, instruções de build para Arch, CI com testes, tela About com todas as atribuições, e **pacote confiável para antivírus** (ver "Confiança e antivírus" no SPEC).
-
-**Critérios de aceitação:**
-- Instalador Windows instala e executa o fluxo E2E.
-- Build no Arch documentado e reproduzido.
-- CI verde em Windows e Linux para o núcleo.
-- Binário release com metadados completos (CompanyName, FileDescription, versão) e assinado com Authenticode + timestamp.
-- Scan do artefato final no VirusTotal antes de cada release; falso positivo é tratado como bloqueador: submeter ao fornecedor antes de publicar.
+- Build no Arch documentado e reproduzido; CI verde no Linux para o núcleo.
